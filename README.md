@@ -27,6 +27,7 @@ The smoke scripts also need `curl`.
 | [quickstart](examples/quickstart/) | The Spinel README's quick start: Sinatra on WEBrick, `spinel test`, `spinel x`, `spinel build --compile`, `spinel -e` | |
 | [wordcount-cli](examples/wordcount-cli/) | A command-line tool with `OptionParser`, table and JSON output, and Minitest tests | |
 | [optparse-cli](examples/optparse-cli/) | A fuller CLI on `OptionParser`: subcommands, global and per-command flags, `--help` output, exit codes, and a single executable from `spinel build` | |
+| [json-api](examples/json-api/) | A JSON API on Sinatra and WEBrick: two resources, request validation, JSON error responses, `JSON` parsing and generation, and a `Net::HTTP` client | |
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
 | [rack-middleware](examples/rack-middleware/) | Custom Rack middleware (request id, request logging, timing headers, bearer-token auth) stacked in `config.ru` in front of a small app, served by Puma, with Minitest tests | `git`, Rust (`cargo`) |
 
@@ -57,7 +58,7 @@ examples/<name>/
 - Keep the example self-contained: it must run from its own directory, with its own gems, and must not depend on another example.
 - Start `smoke` with `set -euo pipefail`, `cd "$(dirname "$0")"` and `. ../../lib/smoke.sh`. That checks the pinned Spinel version and gives you `step`, `expect`, `fail`, `wait_for` and `start_server`/`stop_server` (any server still running is stopped on exit). See [quickstart/smoke](examples/quickstart/smoke) for a short one.
 - Write scratch output to the example's `tmp/` and gems to its `.spinel/`; both are ignored by git.
-- Pick ports no other example uses: quickstart uses 4567, rack-puma uses 9292 and 9293, rack-middleware uses 9310 and 9311.
+- Pick ports no other example uses: quickstart uses 4567, json-api uses 4580, rack-puma uses 9292 and 9293, rack-middleware uses 9310 and 9311.
 - Do not add a `.ruby-version` (see Troubleshooting).
 - Add a row to the table above.
 - If the example hits a gap in Spinel, describe it under "Known issues" in its README and report it on [ar4mirez/spinel](https://github.com/ar4mirez/spinel/issues).

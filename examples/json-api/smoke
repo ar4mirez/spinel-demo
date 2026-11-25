@@ -1,0 +1,70 @@
+#!/usr/bin/env bash
+# A JSON API on Sinatra and WEBrick: Minitest tests with Rack::MockRequest,
+# then every endpoint over HTTP with curl and with a Net::HTTP client.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+base=http://127.0.0.1:4580
+# call METHOD PATH [JSON_BODY]: prints "STATUS BODY"
+call() {
+  local args=(-sS -X "$1" -o tmp/body -w '%{http_code}')
+  [ $# -lt 3 ] || args+=(-H 'Content-Type: application/json' --data-binary "$3")
+  local code; code=$(curl "${args[@]}" "$base$2")
+  printf '%s %s' "$code" "$(cat tmp/body)"
+}
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "serve with spinel run app.rb"
+start_server tmp/app.log spinel run app.rb
+wait_for "$base/"
+expect "GET /" "$(call GET /)" "^200 \{\"name\":\"json-api\",\"engine\":\"spinel\",\"version\":\"$pinned\""
+
+step "create, read, filter and update over HTTP"
+expect "POST /authors" "$(call POST /authors '{"name":"Ursula K. Le Guin","born":1929}')" \
+  '^201 \{"data":\{"id":1,"name":"Ursula K. Le Guin","born":1929\}\}$'
+expect "Location header" "$(curl -sS -o /dev/null -D - -H 'Content-Type: application/json' \
+  -d '{"name":"Ted Chiang"}' "$base/authors" | tr -d '\r')" '^[Ll]ocation: http://127\.0\.0\.1:4580/authors/2$'
+expect "POST /books" "$(call POST /books '{"title":"The Dispossessed","author_id":1,"year":1974,"tags":["sf","utopia"]}')" \
+  '^201 \{"data":\{"id":1,"title":"The Dispossessed","author_id":1,"year":1974,"tags":\["sf","utopia"\]\}\}$'
+expect "POST /books (unicode)" "$(call POST /books '{"title":"Stories of Your Life — Ünïcode ✓","author_id":2}')" \
+  '^201 .*"title":"Stories of Your Life — Ünïcode ✓"'
+expect "GET /books/1" "$(call GET /books/1)" '^200 \{"data":\{"id":1,"title":"The Dispossessed"'
+expect "GET /books?tag=utopia" "$(call GET '/books?tag=utopia')" '^200 \{"data":\[\{"id":1,"title":"The Dispossessed"[^{]*\}\]\}$'
+expect "GET /books?author_id=2" "$(call GET '/books?author_id=2')" '^200 \{"data":\[\{"id":2,"title":"Stories of Your Life[^{]*\}\]\}$'
+expect "PATCH /books/1" "$(call PATCH /books/1 '{"year":1975}')" '^200 .*"year":1975'
+expect "GET /authors/1 embeds books" "$(call GET /authors/1)" '^200 .*"books":\[\{"id":1,"title":"The Dispossessed"'
+
+step "error responses"
+expect "422 validation" "$(call POST /books '{"title":" ","author_id":"1","year":3000,"isbn":"x"}')" \
+  '^422 \{"error":\{"code":"validation_failed","message":"the request body is invalid","details":\{"isbn":\["is not allowed"\],"title":\["must not be blank"\],"author_id":\["must be an integer"\],"year":\["must be between 1 and 2100"\]\}\}\}$'
+expect "422 unknown author" "$(call POST /books '{"title":"x","author_id":99}')" '^422 .*"author_id":\["author 99 does not exist"\]'
+expect "400 invalid JSON" "$(call POST /authors '{"name":')" '^400 \{"error":\{"code":"invalid_json"'
+expect "400 not an object" "$(call POST /authors '[1,2]')" '^400 \{"error":\{"code":"bad_request","message":"the body must be a JSON object"'
+expect "415 form body" "$(curl -sS -w ' %{http_code}' -d 'name=x' "$base/authors")" '"code":"unsupported_media_type".* 415$'
+expect "404 record" "$(call GET /books/42)" '^404 \{"error":\{"code":"not_found","message":"book 42 not found"\}\}$'
+expect "400 bad id" "$(call GET /books/abc)" '^400 .*"id must be an integer"'
+expect "404 route" "$(call GET /nowhere)" '^404 \{"error":\{"code":"not_found","message":"no route for GET /nowhere"\}\}$'
+expect "409 author with books" "$(call DELETE /authors/1)" '^409 \{"error":\{"code":"conflict"'
+expect "content type" "$(curl -sS -o /dev/null -w '%{content_type}' "$base/books/42")" '^application/json'
+
+step "delete"
+expect "DELETE /books/1" "$(call DELETE /books/1)" '^204 $'
+expect "DELETE /authors/1" "$(call DELETE /authors/1)" '^204 $'
+expect "GET /authors/1 after delete" "$(call GET /authors/1)" '^404 '
+
+step "Net::HTTP client (spinel run client.rb)"
+out=$(spinel run client.rb "$base")
+echo "$out"
+expect "client POST /authors" "$out" '^POST /authors -> 201 '
+expect "client 422" "$out" '^POST /books -> 422 .*"must not be blank"'
+expect "client DELETE" "$out" '^DELETE /authors/[0-9]+ -> 204 null$'
+stop_server
+
+printf '\njson-api: all smoke checks passed\n'
