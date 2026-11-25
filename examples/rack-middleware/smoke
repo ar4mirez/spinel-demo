@@ -1,0 +1,52 @@
+#!/usr/bin/env bash
+# Custom Rack middleware (request id, logging, timing, bearer-token auth)
+# stacked in config.ru and served by Puma. Runs bin/setup-puma first if
+# tmp/gem-source is missing, which needs git and Rust (cargo).
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "install puma-spinel and nio4r-spinel from the local gem source"
+[ -f tmp/gem-source/versions ] || bin/setup-puma
+start_server tmp/gem-source.log bin/gem-source
+wait_for http://127.0.0.1:9311/versions
+# Not --frozen: spinel 0.1.0's --frozen rejects a lockfile whose gems come
+# from a `source ... do` block (see README.md, "Known issues"). Check instead
+# that the install left the committed lockfile as it was.
+cp Gemfile.lock tmp/Gemfile.lock.before
+SPINEL_SUBSTITUTES=puma,nio4r spinel install
+cmp -s Gemfile.lock tmp/Gemfile.lock.before || fail "spinel install changed Gemfile.lock"
+stop_server
+expect "substitutes" "$(cat .spinel/substitutions.json)" '"substitute": "puma-spinel"'
+
+step "spinel test (each middleware, and the config.ru stack, through Rack::MockRequest)"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "serve config.ru with Puma"
+start_server tmp/puma.log env API_TOKEN=smoke-token spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9310
+wait_for http://127.0.0.1:9310/
+url=http://127.0.0.1:9310
+
+headers=$(curl -fsS -D - -o tmp/body "$url/")
+expect "GET /" "$(cat tmp/body)" "^Hello from spinel $pinned, behind four middleware$"
+expect "x-request-id generated" "$headers" '^x-request-id: [0-9a-f]{16}'
+expect "x-runtime" "$headers" '^x-runtime: [0-9]+\.[0-9]{6}'
+expect "server-timing" "$headers" '^server-timing: app;dur=[0-9.]+'
+
+expect "x-request-id kept" "$(curl -fsS -D - -o /dev/null -H 'X-Request-Id: smoke-1' "$url/whoami")" '^x-request-id: smoke-1'
+expect "request id in env" "$(curl -fsS -H 'X-Request-Id: smoke-2' "$url/whoami")" '^\{"request_id":"smoke-2","user":null\}$'
+
+expect "no token" "$(curl -sS -o /dev/null -w '%{http_code}' "$url/admin/stats")" '^401$'
+expect "www-authenticate" "$(curl -sS -D - -o /dev/null "$url/admin/stats")" '^www-authenticate: Bearer realm="admin"'
+expect "wrong token" "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer nope' "$url/admin/stats")" '^401$'
+expect "right token" "$(curl -fsS -H 'Authorization: Bearer smoke-token' "$url/admin/stats")" '^\{"user":"admin","hits":[0-9]+,"engine":"spinel"\}$'
+expect "404" "$(curl -sS -o /dev/null -w '%{http_code}' "$url/nope")" '^404$'
+
+log=$(cat tmp/puma.log)
+expect "served by Puma" "$log" "Puma version: 8\.1\.2"
+expect "logged request" "$log" '^GET /whoami 200 [0-9.]+ms id=smoke-2$'
+expect "logged 401" "$log" '^GET /admin/stats 401 [0-9.]+ms id=[0-9a-f]{16}$'
+stop_server
+
+printf '\nrack-middleware: all smoke checks passed\n'
