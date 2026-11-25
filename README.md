@@ -33,6 +33,7 @@ The smoke scripts also need `curl`.
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
 | [rack-middleware](examples/rack-middleware/) | Custom Rack middleware (request id, request logging, timing headers, bearer-token auth) stacked in `config.ru` in front of a small app, served by Puma, with Minitest tests | `git`, Rust (`cargo`) |
 | [sinatra-sqlite](examples/sinatra-sqlite/) | A Sinatra todo app with full CRUD over a SQLite database, served by Puma: a JSON API and an HTML page, with `sqlite3-spinel` standing in for the `sqlite3` C extension | `git`, Rust (`cargo`) |
+| [job-worker](examples/job-worker/) | A background job queue: a producer enqueues jobs into a directory-backed queue and long-running worker processes run them on `Thread` pools, with retries, graceful shutdown on SIGTERM, and recovery of jobs from killed workers | |
 
 Run one example by following its README, or check them with the smoke scripts:
 

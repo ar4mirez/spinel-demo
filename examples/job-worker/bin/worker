@@ -1,0 +1,28 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/worker [--threads N] [--drain]
+# Runs jobs from tmp/queue with N threads (default 2). Without --drain it runs
+# until it gets SIGINT or SIGTERM, then finishes the jobs it is running and
+# exits; with --drain it exits as soon as the queue is empty.
+
+require "optparse"
+require_relative "../lib/job_worker"
+
+threads = 2
+drain = false
+begin
+  OptionParser.new do |o|
+    o.banner = "usage: worker [--threads N] [--drain]"
+    o.on("-t", "--threads N", Integer, "worker threads (default 2)") { |n| threads = n }
+    o.on("-d", "--drain", "exit when the queue is empty") { drain = true }
+  end.parse!(ARGV)
+  abort "worker: unexpected arguments: #{ARGV.join(" ")}" unless ARGV.empty?
+  abort "worker: --threads must be between 1 and 32" unless (1..32).cover?(threads)
+rescue OptionParser::ParseError => e
+  abort "worker: #{e.message}"
+end
+
+worker = JobWorker::Worker.new(JobWorker.queue, threads: threads)
+%w[INT TERM].each { |sig| Signal.trap(sig) { worker.stop } }
+worker.run(drain: drain)

@@ -1,0 +1,16 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/status
+# Prints how many jobs are in each state, and the finished and failed jobs.
+
+require_relative "../lib/job_worker"
+
+abort "usage: status" unless ARGV.empty?
+
+queue = JobWorker.queue
+counts = queue.counts
+
+puts counts.map { |state, n| "#{state} #{n}" }.join(", ")
+queue.jobs("done").each { |j| puts "  done   #{j.type} #{JSON.generate(j.args)} -> #{JSON.generate(j.data["result"])} by #{j.data["worker"]}" }
+queue.jobs("failed").each { |j| puts "  failed #{j.type} #{JSON.generate(j.args)}: #{j.data["error"]} after #{j.attempts} attempt#{"s" unless j.attempts == 1}" }
