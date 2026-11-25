@@ -1,0 +1,17 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gem "sinatra", "~> 4.2"
+gem "minitest", "~> 6.1"
+
+# sqlite3, Puma and nio4r have C extensions, which Spinel does not build.
+# Spinel substitutes sqlite3-spinel, puma-spinel and nio4r-spinel for them, but
+# only when the locked gem comes from a source that also serves the substitute,
+# and only with SPINEL_SUBSTITUTES=sqlite3,puma,nio4r set. bin/setup-gems
+# builds that source and bin/gem-source serves it on this address.
+source "http://127.0.0.1:9331" do
+  gem "sqlite3", "2.10.2"
+  gem "puma", "8.1.2"
+  gem "nio4r", "2.7.5"
+end
