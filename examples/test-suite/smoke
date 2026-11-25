@@ -1,0 +1,44 @@
+#!/usr/bin/env bash
+# A small library tested two ways: Minitest under test/ and RSpec under spec/,
+# both run by spinel test, sharing a YAML fixture.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test (Minitest and RSpec together)"
+expect "spinel test" "$(spinel test 2>&1)" "^31 tests, 0 failures, 0 errors, 0 skips$"
+
+step "one suite at a time"
+# spinel test does not take a directory (ar4mirez/spinel#910); let the shell list the files.
+expect "minitest only" "$(spinel test test/*_test.rb 2>&1)" "^13 tests, 0 failures, 0 errors, 0 skips$"
+expect "rspec only" "$(spinel test spec/*_spec.rb 2>&1)" "^18 tests, 0 failures, 0 errors, 0 skips$"
+
+step "FILE:LINE runs one test or example"
+expect "minitest FILE:LINE" "$(spinel test test/cart_test.rb:41 2>&1)" "^1 test, 0 failures"
+expect "rspec FILE:LINE" "$(spinel test spec/cart_spec.rb:47 2>&1)" "^1 test, 0 failures"
+
+step "JUnit report"
+spinel test --reporter junit >tmp/junit.xml 2>/dev/null
+expect "junit" "$(head -2 tmp/junit.xml)" '<testsuites name="spinel test" tests="31" failures="0" errors="0"'
+
+step "a failing spec"
+cat >tmp/failing_spec.rb <<'RUBY'
+require_relative "../spec/spec_helper"
+
+RSpec.describe "a failing example" do
+  it("adds wrong") { expect(1 + 1).to eq(3) }
+end
+RUBY
+if spinel test tmp/failing_spec.rb >tmp/failing.out 2>&1; then fail "a failing spec should exit non-zero"; fi
+expect "failure summary" "$(cat tmp/failing.out)" "^1 test, 1 failure, 0 errors, 0 skips$"
+expect "re-run command" "$(cat tmp/failing.out)" "^spinel test tmp/failing_spec\.rb:4 "
+
+step "each framework's own runner"
+expect "spinel x rspec" "$(spinel x rspec 2>&1)" "^18 examples, 0 failures$"
+expect "minitest autorun" "$(spinel run test/cart_test.rb 2>&1)" "^10 runs, [0-9]+ assertions, 0 failures, 0 errors, 0 skips$"
+
+printf '\ntest-suite: all smoke checks passed\n'
