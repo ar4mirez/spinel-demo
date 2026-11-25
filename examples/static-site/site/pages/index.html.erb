@@ -1,0 +1,18 @@
+---
+title: Home
+---
+<h1><%= h site["title"] %></h1>
+<p><%= h site["description"] %></p>
+<h2>Posts</h2>
+<ul class="posts">
+<% posts.each do |post| -%>
+  <li>
+    <%= link_to post.title, post.url %>
+    <time datetime="<%= post.date.iso8601 %>"><%= format_date(post.date) %></time>
+<% if post.summary -%>
+    <p><%= h post.summary %></p>
+<% end -%>
+  </li>
+<% end -%>
+</ul>
+<p><%= posts.length %> posts.</p>

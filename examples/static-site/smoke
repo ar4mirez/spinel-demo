@@ -1,0 +1,48 @@
+#!/usr/bin/env bash
+# The static site generator: its tests, a build of site/, and the HTML it writes.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "spinel run bin/build site tmp/public"
+mkdir -p tmp/public && echo stale >tmp/public/stale.html
+expect "build" "$(spinel run bin/build site tmp/public)" "^built 5 files into tmp/public with spinel $pinned$"
+for f in index.html about.html posts/hello-spinel.html posts/erb-templates.html style.css; do
+  [ -s "tmp/public/$f" ] || fail "missing tmp/public/$f"
+done
+echo "ok: all five files written"
+[ ! -e tmp/public/stale.html ] || fail "stale file survived the rebuild"
+echo "ok: stale output removed"
+
+step "the HTML"
+index=$(cat tmp/public/index.html)
+expect "index title (layout)" "$index" "<title>Home \| Notes from Spinel</title>"
+expect "index lists posts newest first" "$(grep -o 'posts/[a-z-]*\.html' <<<"$index" | tr '\n' ' ')" "^posts/erb-templates\.html posts/hello-spinel\.html $"
+expect "index escapes titles" "$index" "ERB templates &amp; layouts"
+post=$(cat tmp/public/posts/hello-spinel.html)
+expect "post date from file name" "$post" '<time datetime="2026-11-02">November 2, 2026</time>'
+expect "post markdown list" "$post" "<li><em>Emphasis</em> and <strong>strong</strong> text</li>"
+expect "post code block" "$post" '<pre><code class="language-ruby">puts &quot;Hello from'
+expect "post relative links" "$post" '<link rel="stylesheet" href="\.\./style\.css">'
+expect "about page from markdown" "$(cat tmp/public/about.html)" "<blockquote>"
+expect "footer engine" "$index" "Built with spinel $pinned\."
+cmp -s site/assets/style.css tmp/public/style.css || fail "style.css differs from site/assets/style.css"
+echo "ok: assets copied"
+
+step "errors"
+if spinel run bin/build no-such-site tmp/none 2>tmp/build.err; then fail "a missing site should exit non-zero"; fi
+expect "missing site" "$(cat tmp/build.err)" "build: no such site directory: no-such-site"
+# The output guard (tested fully in test/builder_test.rb) at the command line,
+# with the one refused path that is harmless even if the guard were broken.
+if spinel run bin/build site site 2>tmp/build.err; then fail "building into the source should exit non-zero"; fi
+expect "output guard" "$(cat tmp/build.err)" "build: refusing to write to site: it contains the source directory"
+[ -s site/config.yml ] || fail "site/ was touched"
+
+printf '\nstatic-site: all smoke checks passed\n'

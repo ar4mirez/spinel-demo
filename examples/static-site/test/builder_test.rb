@@ -1,0 +1,162 @@
+# frozen_string_literal: true
+
+require "minitest/autorun"
+require "fileutils"
+require "tmpdir"
+require_relative "../lib/static_site"
+
+class BuilderTest < Minitest::Test
+  SITE = File.expand_path("../site", __dir__)
+  TMP = File.expand_path("../tmp", __dir__)
+
+  # Every test works in a fresh directory under this example's tmp/, never
+  # outside the example.
+  def setup
+    FileUtils.mkdir_p(TMP)
+    @dir = Dir.mktmpdir("test-", TMP)
+  end
+
+  def teardown
+    FileUtils.rm_rf(@dir)
+  end
+
+  def out(*parts) = File.join(@dir, "public", *parts)
+
+  def build(source = SITE) = StaticSite.build(source, out)
+
+  def test_builds_the_example_site
+    assert_equal %w[about.html index.html posts/erb-templates.html posts/hello-spinel.html style.css], build
+    index = File.read(out("index.html"))
+    assert_includes index, "<title>Home | Notes from Spinel</title>"
+    # Newest post first, linked relative to the page.
+    assert_match(%r{posts/erb-templates\.html.*posts/hello-spinel\.html}m, index)
+    assert_includes index, "ERB templates &amp; layouts"
+    assert_includes index, "<p>2 posts.</p>"
+  end
+
+  def test_posts_use_the_layout_and_relative_links
+    build
+    post = File.read(out("posts", "hello-spinel.html"))
+    assert_includes post, %(<link rel="stylesheet" href="../style.css">)
+    assert_includes post, %(<time datetime="2026-11-02">November 2, 2026</time>)
+    assert_includes post, %(<pre><code class="language-ruby">puts &quot;Hello from)
+    assert_equal File.read(File.join(SITE, "assets", "style.css")), File.read(out("style.css"))
+  end
+
+  def test_rebuild_removes_stale_files
+    FileUtils.mkdir_p(out)
+    File.write(out("stale.html"), "old")
+    build
+    refute File.exist?(out("stale.html"))
+  end
+
+  def test_front_matter_layout_and_errors
+    src = File.join(@dir, "src")
+    FileUtils.mkdir_p([File.join(src, "layouts"), File.join(src, "pages")])
+    File.write(File.join(src, "layouts", "bare.html.erb"), "[<%= page.title %>|<%= content %>]")
+    File.write(File.join(src, "pages", "x.md"), "---\ntitle: X\nlayout: bare\n---\nhi\n")
+    assert_equal ["x.html"], build(src)
+    assert_equal "[X|<p>hi</p>]", File.read(out("x.html"))
+
+    File.write(File.join(src, "pages", "x.md"), "---\nlayout: missing\n---\nhi\n")
+    assert_raises(StaticSite::Error) { build(src) }
+    File.write(File.join(src, "pages", "x.md"), "---\n- a list\n---\nhi\n")
+    assert_raises(StaticSite::Error) { build(src) }
+    assert_raises(StaticSite::Error) { StaticSite.build(File.join(@dir, "nope"), out) }
+    assert_raises(StaticSite::Error) { StaticSite.build(src, @dir) }
+  end
+
+  # The refusals only ever construct a Builder: nothing is built or deleted.
+  def assert_refused(output, pattern)
+    error = assert_raises(StaticSite::Error) { StaticSite::Builder.new(SITE, output) }
+    assert_match pattern, error.message
+  end
+
+  def test_refuses_the_file_system_root
+    assert_refused "/", /file system root/
+    assert_refused "/../..", /file system root/
+  end
+
+  def test_refuses_the_home_directory_and_its_ancestors
+    assert_refused Dir.home, /home directory/
+    assert_refused File.dirname(Dir.home), /home directory|example directory|outside/
+    assert_refused "~", /home directory/
+  end
+
+  def test_refuses_the_example_directory_and_its_ancestors
+    root = StaticSite::ROOT
+    assert_refused root, /example directory/
+    assert_refused File.dirname(root), /example directory/
+    assert_refused File.join(root, ".."), /example directory/
+    assert_refused File.expand_path("../..", root), /example directory/
+  end
+
+  def test_refuses_anywhere_outside_the_example
+    assert_refused File.join(File.dirname(StaticSite::ROOT), "elsewhere", "public"), /outside/
+    assert_refused File.join(@dir, "..", "..", "..", "out"), /outside/
+  end
+
+  def test_refuses_symlinks_that_lead_outside
+    link = File.join(@dir, "link")
+    File.symlink(File.dirname(StaticSite::ROOT), link)
+    assert_refused link, /example directory/
+    assert_refused File.join(link, "public"), /outside/
+    dangling = File.join(@dir, "dangling")
+    File.symlink(File.join(@dir, "no-such-dir"), dangling)
+    assert_refused dangling, /dangling symlink/
+  end
+
+  def test_refuses_a_directory_holding_the_source
+    assert_refused File.dirname(SITE), /example directory/
+    assert_refused SITE, /source directory/
+  end
+
+  def test_refuses_a_directory_inside_the_source
+    assert_refused File.join(SITE, "assets"), /inside the source directory/
+    assert_refused File.join(SITE, "pages", "new"), /inside the source directory/
+    assert File.file?(File.join(SITE, "assets", "style.css"))
+  end
+
+  def source(files)
+    src = File.join(@dir, "src")
+    files = { "layouts/default.html.erb" => "<%= content %>" }.merge(files)
+    files.each do |rel, text|
+      FileUtils.mkdir_p(File.dirname(File.join(src, rel)))
+      File.write(File.join(src, rel), text)
+    end
+    src
+  end
+
+  def assert_build_fails(files, pattern)
+    FileUtils.mkdir_p(out)
+    File.write(out("keep.html"), "old")
+    error = assert_raises(StaticSite::Error) { build(source(files)) }
+    assert_match pattern, error.message
+    assert File.exist?(out("keep.html")), "the output was emptied before the error"
+  end
+
+  def test_refuses_two_sources_with_the_same_output_path
+    assert_build_fails({ "posts/2026-01-01-a.md" => "one", "posts/2026-02-01-a.md" => "two" }, %r{writes posts/a\.html})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "posts/2026-01-01-a.md" => "one", "pages/posts/a.md" => "two" }, %r{writes posts/a\.html})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "pages/index.md" => "one", "assets/index.html" => "two" }, /writes index\.html/)
+  end
+
+  def test_yaml_that_is_not_allowed_is_a_build_error
+    assert_build_fails({ "pages/x.md" => "---\ndate: 2026-11-02 10:00:00\n---\nhi\n" }, %r{pages/x\.md: bad front matter})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "pages/x.md" => "---\na: &a 1\nb: *a\n---\nhi\n" }, %r{pages/x\.md: bad front matter})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "config.yml" => "- a list\n" }, /config\.yml: config must be a mapping/)
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "config.yml" => "when: 2026-11-02 10:00:00\n" }, /config\.yml: bad config/)
+  end
+
+  def test_builds_into_a_new_directory_inside_the_example
+    target = File.join(@dir, "new", "site")
+    written = StaticSite.build(SITE, target)
+    assert_includes written, "index.html"
+    assert File.file?(File.join(target, "index.html"))
+  end
+end
