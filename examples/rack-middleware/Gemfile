@@ -1,0 +1,16 @@
+# frozen_string_literal: true
+
+source "https://rubygems.org"
+
+gem "rack", "~> 3.2"
+gem "minitest", "~> 6.1"
+
+# Puma and nio4r have C extensions, which Spinel does not build. Spinel
+# substitutes puma-spinel and nio4r-spinel for them, but only when the locked
+# gem comes from a source that also serves the substitute, and only with
+# SPINEL_SUBSTITUTES=puma,nio4r set. bin/setup-puma builds that source and
+# bin/gem-source serves it on this address (see ../rack-puma for the details).
+source "http://127.0.0.1:9311" do
+  gem "puma", "8.1.2"
+  gem "nio4r", "2.7.5"
+end
