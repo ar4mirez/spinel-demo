@@ -32,6 +32,7 @@ The smoke scripts also need `curl`.
 | [json-api](examples/json-api/) | A JSON API on Sinatra and WEBrick: two resources, request validation, JSON error responses, `JSON` parsing and generation, and a `Net::HTTP` client | |
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
 | [rack-middleware](examples/rack-middleware/) | Custom Rack middleware (request id, request logging, timing headers, bearer-token auth) stacked in `config.ru` in front of a small app, served by Puma, with Minitest tests | `git`, Rust (`cargo`) |
+| [sinatra-sqlite](examples/sinatra-sqlite/) | A Sinatra todo app with full CRUD over a SQLite database, served by Puma: a JSON API and an HTML page, with `sqlite3-spinel` standing in for the `sqlite3` C extension | `git`, Rust (`cargo`) |
 
 Run one example by following its README, or check them with the smoke scripts:
 
@@ -60,7 +61,7 @@ examples/<name>/
 - Keep the example self-contained: it must run from its own directory, with its own gems, and must not depend on another example.
 - Start `smoke` with `set -euo pipefail`, `cd "$(dirname "$0")"` and `. ../../lib/smoke.sh`. That checks the pinned Spinel version and gives you `step`, `expect`, `fail`, `wait_for` and `start_server`/`stop_server` (any server still running is stopped on exit). See [quickstart/smoke](examples/quickstart/smoke) for a short one.
 - Write scratch output to the example's `tmp/` and gems to its `.spinel/`; both are ignored by git.
-- Pick ports no other example uses: quickstart uses 4567, json-api uses 4580, rack-puma uses 9292 and 9293, rack-middleware uses 9310 and 9311.
+- Pick ports no other example uses: quickstart uses 4567, json-api uses 4580, rack-puma uses 9292 and 9293, rack-middleware uses 9310 and 9311, sinatra-sqlite uses 9330 and 9331.
 - Do not add a `.ruby-version` (see Troubleshooting).
 - Add a row to the table above.
 - If the example hits a gap in Spinel, describe it under "Known issues" in its README and report it on [ar4mirez/spinel](https://github.com/ar4mirez/spinel/issues).
@@ -89,3 +90,4 @@ Each example's README lists the Spinel issues it works around:
 - [test-suite](examples/test-suite/README.md#known-issues-spinel-010): `spinel test DIR` fails with "no such file" ([ar4mirez/spinel#910](https://github.com/ar4mirez/spinel/issues/910)); pass the files (`spinel test spec/*_spec.rb`).
 - [rack-puma](examples/rack-puma/README.md#known-issues-spinel-010): `spinel install --frozen` rejects gems from a `source "..." do` block, and `spinel run -S puma` does not find the project's gem stub.
 - [rack-middleware](examples/rack-middleware/README.md#known-issues-spinel-010): the same two Puma install issues as rack-puma.
+- [sinatra-sqlite](examples/sinatra-sqlite/README.md#known-issues-spinel-010): the same two install issues as rack-puma ([ar4mirez/spinel#894](https://github.com/ar4mirez/spinel/issues/894), [ar4mirez/spinel#896](https://github.com/ar4mirez/spinel/issues/896)).

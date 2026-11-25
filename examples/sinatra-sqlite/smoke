@@ -1,0 +1,57 @@
+#!/usr/bin/env bash
+# A Sinatra todo app with full CRUD over SQLite, served by Puma, with
+# sqlite3-spinel, puma-spinel and nio4r-spinel installed from a local gem
+# source. Runs bin/setup-gems first if tmp/gem-source is missing, which needs
+# git and Rust (cargo).
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "install sqlite3-spinel, puma-spinel and nio4r-spinel from the local gem source"
+[ -f tmp/gem-source/versions ] || bin/setup-gems
+start_server tmp/gem-source.log bin/gem-source
+wait_for http://127.0.0.1:9331/versions
+# Not --frozen: spinel 0.1.0's --frozen rejects a lockfile whose gems come
+# from a `source ... do` block (see README.md, "Known issues"). Check instead
+# that the install left the committed lockfile as it was.
+cp Gemfile.lock tmp/Gemfile.lock.before
+SPINEL_SUBSTITUTES=sqlite3,puma,nio4r spinel install
+cmp -s Gemfile.lock tmp/Gemfile.lock.before || fail "spinel install changed Gemfile.lock"
+stop_server
+subs=$(cat .spinel/substitutions.json)
+expect "sqlite3 substitute" "$subs" '"substitute": "sqlite3-spinel"'
+expect "puma substitute" "$subs" '"substitute": "puma-spinel"'
+
+step "spinel test (every route, in-process, over an in-memory database)"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "serve config.ru with Puma, over tmp/todos.db"
+rm -f tmp/todos.db tmp/todos.db-journal
+url=http://127.0.0.1:9330
+serve() { start_server tmp/puma.log spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9330; wait_for "$url/health"; }
+serve
+json=(-H 'Content-Type: application/json')
+
+expect "GET /health" "$(curl -fsS "$url/health")" "^\{\"status\":\"ok\",\"engine\":\"spinel\",\"version\":\"$pinned\",\"sqlite\":\"3\.[0-9.]+\",\"todos\":0\}$"
+expect "POST /todos (JSON)" "$(curl -fsS -D - "${json[@]}" -d '{"title":"buy milk"}' "$url/todos")" '^location: /todos/1'
+expect "POST /todos (form)" "$(curl -sS -o /dev/null -w '%{http_code}' -d 'title=walk+the+dog' "$url/todos")" '^303$'
+expect "GET /todos" "$(curl -fsS "$url/todos")" '^\{"data":\[\{"id":1,"title":"buy milk","done":false,.*\{"id":2,"title":"walk the dog","done":false,'
+expect "GET /todos/2" "$(curl -fsS "$url/todos/2")" '^\{"data":\{"id":2,"title":"walk the dog","done":false,"created_at":"[0-9T:-]+Z"\}\}$'
+expect "PATCH /todos/1" "$(curl -fsS -X PATCH "${json[@]}" -d '{"done":true}' "$url/todos/1")" '"id":1,"title":"buy milk","done":true'
+expect "GET /todos?done=true" "$(curl -fsS "$url/todos?done=true")" '^\{"data":\[\{"id":1,[^]]*\}\]\}$'
+expect "HTML page" "$(curl -fsS "$url/")" '<s>buy milk</s>'
+expect "422" "$(curl -sS -w ' %{http_code}' "${json[@]}" -d '{"title":""}' "$url/todos")" '"title":"must be a non-empty string".* 422$'
+expect "400" "$(curl -sS -o /dev/null -w '%{http_code}' "${json[@]}" -d '{"title":' "$url/todos")" '^400$'
+expect "DELETE /todos/2" "$(curl -sS -o /dev/null -w '%{http_code}' -X DELETE "$url/todos/2")" '^204$'
+expect "404 after delete" "$(curl -sS -w ' %{http_code}' "$url/todos/2")" '"todo 2 not found".* 404$'
+expect "served by Puma" "$(cat tmp/puma.log)" "Puma version: 8\.1\.2"
+stop_server
+
+step "restart Puma: the todos are still in tmp/todos.db"
+serve
+expect "GET /todos after restart" "$(curl -fsS "$url/todos")" '^\{"data":\[\{"id":1,"title":"buy milk","done":true,[^]]*\}\]\}$'
+expect "new ids continue" "$(curl -fsS "${json[@]}" -d '{"title":"call mom"}' "$url/todos")" '"id":3,'
+stop_server
+
+printf '\nsinatra-sqlite: all smoke checks passed\n'

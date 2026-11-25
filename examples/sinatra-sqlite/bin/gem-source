@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Serves tmp/gem-source (made by bin/setup-gems) on http://127.0.0.1:9331/,
+# the source this example's Gemfile names. Stop it with Ctrl-C.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[ -f tmp/gem-source/versions ] || { echo "gem-source: run bin/setup-gems first" >&2; exit 1; }
+exec spinel run gem-source/serve.rb tmp/gem-source
