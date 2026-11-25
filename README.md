@@ -95,3 +95,16 @@ It starts every server it needs and stops each one before it exits.
 - `spinel install --frozen` rejects `puma/Gemfile.lock`, which `spinel install` wrote, saying `puma from http://127.0.0.1:9293/ to no specified source`. It does this for any gem in a `source "..." do` block. Bundler 4.0.20 accepts the same lockfile with `BUNDLE_FROZEN=true`. So `bin/smoke` runs plain `spinel install` in `puma/` and then checks that the lockfile did not change.
 - `spinel FILE --help`, `-h`, `--version` and `-v` print Spinel's help or version instead of passing the flag to the program, and so does `spinel run FILE --help`. This also breaks a `#!/usr/bin/env spinel` script and gem stubs: `bin/wordcount --help` and `.spinel/gem_home/bin/puma --version` print Spinel's own output. Put `--` before the flag (`spinel run bin/wordcount -- --help`), or put another argument first.
 - `spinel run -S puma` does not find the project's `.spinel/gem_home/bin/puma`, so run the stub by its path, as above.
+
+## Troubleshooting
+
+### `mise install` fails with `no precompiled ruby found for core:ruby@spinel-...`
+
+`spinel init` 0.1.0 writes a `.ruby-version` file containing `spinel-0.1.0`. mise (when `idiomatic_version_file_enable_tools` includes `ruby`), rbenv, asdf and chruby all read `.ruby-version` as a request for that version of CRuby, which does not exist, so `mise install` fails. Spinel 0.1.0 does not need the file, and this repository no longer has one. If you get this error in your own Spinel project, delete `.ruby-version`:
+
+```sh
+rm .ruby-version
+mise install
+```
+
+The upstream fix is tracked in [ar4mirez/spinel#902](https://github.com/ar4mirez/spinel/issues/902).
