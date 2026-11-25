@@ -1,0 +1,38 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/wordcount [options] [FILE...]
+# Reads FILEs (or standard input) and prints the most frequent words.
+
+require "optparse"
+require_relative "../lib/wordcount"
+
+options = {top: 10, min_length: 1, ignore: [], format: "table"}
+parser = OptionParser.new do |o|
+  o.banner = "Usage: wordcount [options] [FILE...]"
+  o.on("-n", "--top N", Integer, "how many words to show (default 10)") { |v| options[:top] = v }
+  o.on("-m", "--min-length N", Integer, "skip words shorter than N") { |v| options[:min_length] = v }
+  o.on("-i", "--ignore LIST", Array, "comma-separated words to skip") { |v| options[:ignore] = v }
+  o.on("-f", "--format FORMAT", %w[table json], "table or json") { |v| options[:format] = v }
+  o.on("-v", "--version", "print the Ruby engine and exit") do
+    puts "wordcount on #{RUBY_ENGINE} #{RUBY_ENGINE_VERSION} (ruby #{RUBY_VERSION})"
+    exit
+  end
+end
+
+begin
+  parser.parse!
+rescue OptionParser::ParseError => e
+  warn "wordcount: #{e.message}", parser.banner
+  exit 2
+end
+
+missing = ARGV.reject { |path| File.file?(path) }
+unless missing.empty?
+  warn "wordcount: no such file: #{missing.join(", ")}"
+  exit 1
+end
+
+text = ARGV.empty? ? $stdin.read : ARGV.map { |path| File.read(path) }.join("\n")
+result = Wordcount.count(text, top: options[:top], min_length: options[:min_length], ignore: options[:ignore])
+puts options[:format] == "json" ? Wordcount.format_json(result) : Wordcount.format_table(result)
