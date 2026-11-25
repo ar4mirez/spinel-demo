@@ -2,7 +2,7 @@
 
 # A small Rack app, served by Puma on Spinel:
 #
-#   cd puma && spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292
+#   spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292
 
 require "json"
 require "rack"

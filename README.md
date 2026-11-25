@@ -1,106 +1,72 @@
 # spinel-demo
 
-A demo app built by following the [Spinel](https://github.com/ar4mirez/spinel) README as a new user. It has three parts:
+A collection of small apps and use cases that show [Spinel](https://github.com/ar4mirez/spinel) at work. Each example lives in its own directory under `examples/`, has its own README and gems, and has a smoke script that CI runs on every push and pull request.
 
-1. **The README's quick start**: a Sinatra app on WEBrick (`app.rb`), a Minitest test, `spinel x`, `spinel build --compile` and `spinel -e`.
-2. **A command-line tool**: `bin/wordcount`, which prints the most frequent words in files or standard input (`lib/wordcount.rb`, tested in `test/wordcount_test.rb`).
-3. **A Rack app served by Puma** (`puma/config.ru`), using Spinel's `puma-spinel` and `nio4r-spinel` substitutes.
+## What Spinel is
 
-`bin/smoke` runs and checks all three.
+Spinel is a Ruby engine and toolchain built from scratch, in one binary. The same `spinel` runs Ruby programs on its own VM (`RUBY_ENGINE` is `"spinel"`, `RUBY_VERSION` is 4.0.0), installs gems from a `Gemfile` (`spinel install`), runs tests (`spinel test`), runs gem executables (`spinel x`) and packs a project into one executable (`spinel build`). The examples here use it the way a new user would, following its README.
 
-## Requirements
+## Install Spinel
 
-- [mise](https://mise.jdx.dev), or any other way to put `spinel` 0.1.0 on your `PATH`.
-- `curl`, for `bin/smoke`.
-- For the Puma part only: `git` and a Rust toolchain (`cargo`), because `puma-spinel` is not on rubygems.org yet and has to be built from Spinel's source.
-
-## Setup
-
-Spinel is pinned to 0.1.0 in `mise.toml`:
+Spinel is pinned to 0.1.0 in `mise.toml`, and every example uses that version:
 
 ```sh
 git clone https://github.com/ar4mirez/spinel-demo && cd spinel-demo
 mise install              # installs github:ar4mirez/spinel@0.1.0
 spinel --version          # spinel 0.1.0 (ruby 4.0.0) [x86_64-linux]
-spinel install --frozen   # the gems in Gemfile.lock, into .spinel/gem_home/
 ```
 
-`mise use github:ar4mirez/spinel@0.1.0` is what wrote `mise.toml`. A pinned version is needed for now: `mise use github:ar4mirez/spinel` (latest) fails for the first 24 hours after a release, because mise does not install a release younger than its `minimum_release_age`.
+[mise](https://mise.jdx.dev) is the easiest way, but any way of putting `spinel` 0.1.0 on your `PATH` works. `mise use github:ar4mirez/spinel@0.1.0` is what wrote `mise.toml`. A pinned version is needed for now: `mise use github:ar4mirez/spinel` (latest) fails for the first 24 hours after a release, because mise does not install a release younger than its `minimum_release_age`.
 
-## 1. The quick start
+The smoke scripts also need `curl`.
+
+## Examples
+
+| Example | What it shows | Needs |
+| --- | --- | --- |
+| [quickstart](examples/quickstart/) | The Spinel README's quick start: Sinatra on WEBrick, `spinel test`, `spinel x`, `spinel build --compile`, `spinel -e` | |
+| [wordcount-cli](examples/wordcount-cli/) | A command-line tool with `OptionParser`, table and JSON output, and Minitest tests | |
+| [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
+
+Run one example by following its README, or check them with the smoke scripts:
 
 ```sh
-spinel run app.rb                      # serves on http://localhost:4567
-curl http://localhost:4567/            # Hello from spinel 0.1.0
-
-spinel test                            # test/*_test.rb on parallel workers
-spinel x rake --version                # a gem's executable, outside the project
-spinel build --compile app.rb -o hello # one self-contained executable
-./hello                                # the same server, from the executable
-spinel -e 'puts RUBY_VERSION'          # 4.0.0
+bin/smoke                          # every example
+bin/smoke quickstart wordcount-cli # only these
+bin/smoke --list                   # the example names
 ```
 
-## 2. The wordcount CLI
+Each smoke script starts the servers it needs and stops them before it exits.
 
-```sh
-spinel run bin/wordcount README.md                # the ten most frequent words
-spinel run bin/wordcount -n 3 -m 4 README.md      # top 3, words of 4 letters or more
-echo "the cat and the hat" | spinel run bin/wordcount -f json
-spinel run bin/wordcount -i the,and,a README.md   # skip some words
-spinel run bin/wordcount -- --help                # its options (see Known issues)
+## Adding an example
+
+Every example follows the same layout, so `bin/smoke` and CI pick it up without changes:
+
+```
+examples/<name>/
+  README.md      what it shows, prerequisites, how to run it with Spinel, known Spinel issues
+  smoke          executable; runs the example and checks its output, exits non-zero on failure
+  Gemfile        if it uses gems, with the Gemfile.lock that `spinel install` wrote
+  Gemfile.lock
+  ...            the example's own code
 ```
 
-`bin/wordcount` starts with `#!/usr/bin/env spinel`, so `bin/wordcount README.md` works too.
+- Name the directory in lowercase with dashes (`json-api`, `sinatra-sqlite`). The name is what `bin/smoke NAME` and the CI job use.
+- Keep the example self-contained: it must run from its own directory, with its own gems, and must not depend on another example.
+- Start `smoke` with `set -euo pipefail`, `cd "$(dirname "$0")"` and `. ../../lib/smoke.sh`. That checks the pinned Spinel version and gives you `step`, `expect`, `fail`, `wait_for` and `start_server`/`stop_server` (any server still running is stopped on exit). See [quickstart/smoke](examples/quickstart/smoke) for a short one.
+- Write scratch output to the example's `tmp/` and gems to its `.spinel/`; both are ignored by git.
+- Pick ports no other example uses: quickstart uses 4567, rack-puma uses 9292 and 9293.
+- Do not add a `.ruby-version` (see Troubleshooting).
+- Add a row to the table above.
+- If the example hits a gap in Spinel, describe it under "Known issues" in its README and report it on [ar4mirez/spinel](https://github.com/ar4mirez/spinel/issues).
 
-## 3. A Rack app on Puma
-
-Puma and nio4r have C extensions, which Spinel does not build. Spinel's own `puma-spinel` and `nio4r-spinel` gems stand in for them, but they are not published to rubygems.org yet. Spinel installs a substitute only when the substitute comes from the same gem source as the locked gem, and only when you opt in with `SPINEL_SUBSTITUTES=puma,nio4r`. So `puma/Gemfile` takes `puma` and `nio4r` from a gem source on `http://127.0.0.1:9293`, which this repository builds and serves:
-
-```sh
-bin/setup-puma            # clones Spinel at v0.1.0, builds both gems, writes tmp/gem-source/
-bin/gem-source            # serves tmp/gem-source on http://127.0.0.1:9293 (leave it running)
-```
-
-In another terminal:
-
-```sh
-cd puma
-SPINEL_SUBSTITUTES=puma,nio4r spinel install   # + nio4r 2.7.5, + puma 8.1.2
-cat .spinel/substitutions.json                 # puma-spinel 8.1.2.1 stands in for puma 8.1.2
-```
-
-The gem source is needed only while installing, so you can stop `bin/gem-source` now. Then serve the app:
-
-```sh
-spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292
-curl http://127.0.0.1:9292/                                    # Hello from spinel 0.1.0 on Puma 8.1.2
-curl http://127.0.0.1:9292/health                              # {"status":"ok","engine":"spinel",...}
-curl -X POST -d '{"text":"buy milk"}' http://127.0.0.1:9292/notes
-curl http://127.0.0.1:9292/notes                               # {"notes":["buy milk"]}
-```
-
-`gem-source/build.rb` writes the source in the compact index format that rubygems.org serves. It takes the upstream `/info` lines for `puma 8.1.2` and `nio4r 2.7.5` from rubygems.org, so `Gemfile.lock` keeps upstream's checksums. It adds lines for the two substitutes and copies their `.gem` files. `gem-source/serve.rb` serves it with WEBrick. Both run on Spinel.
-
-## Smoke check
-
-```sh
-bin/smoke                 # everything; runs bin/setup-puma first if tmp/gem-source is missing
-SKIP_PUMA=1 bin/smoke     # parts 1 and 2 only: no git or Rust needed
-```
-
-It starts every server it needs and stops each one before it exits.
-
-## Known issues (spinel 0.1.0)
-
-- `spinel install --frozen` rejects `puma/Gemfile.lock`, which `spinel install` wrote, saying `puma from http://127.0.0.1:9293/ to no specified source`. It does this for any gem in a `source "..." do` block. Bundler 4.0.20 accepts the same lockfile with `BUNDLE_FROZEN=true`. So `bin/smoke` runs plain `spinel install` in `puma/` and then checks that the lockfile did not change.
-- `spinel FILE --help`, `-h`, `--version` and `-v` print Spinel's help or version instead of passing the flag to the program, and so does `spinel run FILE --help`. This also breaks a `#!/usr/bin/env spinel` script and gem stubs: `bin/wordcount --help` and `.spinel/gem_home/bin/puma --version` print Spinel's own output. Put `--` before the flag (`spinel run bin/wordcount -- --help`), or put another argument first.
-- `spinel run -S puma` does not find the project's `.spinel/gem_home/bin/puma`, so run the stub by its path, as above.
+CI (`.github/workflows/ci.yml`) installs Spinel from `mise.toml` and runs `bin/smoke <name>` for every directory `bin/smoke --list` finds, one job per example.
 
 ## Troubleshooting
 
 ### `mise install` fails with `no precompiled ruby found for core:ruby@spinel-...`
 
-`spinel init` 0.1.0 writes a `.ruby-version` file containing `spinel-0.1.0`. mise (when `idiomatic_version_file_enable_tools` includes `ruby`), rbenv, asdf and chruby all read `.ruby-version` as a request for that version of CRuby, which does not exist, so `mise install` fails. Spinel 0.1.0 does not need the file, and this repository no longer has one. If you get this error in your own Spinel project, delete `.ruby-version`:
+`spinel init` 0.1.0 writes a `.ruby-version` file containing `spinel-0.1.0`. mise (when `idiomatic_version_file_enable_tools` includes `ruby`), rbenv, asdf and chruby all read `.ruby-version` as a request for that version of CRuby, which does not exist, so `mise install` fails. Spinel 0.1.0 does not need the file, and this repository has none. If you get this error in your own Spinel project, delete `.ruby-version`:
 
 ```sh
 rm .ruby-version
@@ -108,3 +74,10 @@ mise install
 ```
 
 The upstream fix is tracked in [ar4mirez/spinel#902](https://github.com/ar4mirez/spinel/issues/902).
+
+### Known issues in Spinel 0.1.0
+
+Each example's README lists the Spinel issues it works around:
+
+- [wordcount-cli](examples/wordcount-cli/README.md#known-issues-spinel-010): `spinel FILE --help` (and `-h`, `--version`, `-v`) prints Spinel's output instead of passing the flag on; put `--` first.
+- [rack-puma](examples/rack-puma/README.md#known-issues-spinel-010): `spinel install --frozen` rejects gems from a `source "..." do` block, and `spinel run -S puma` does not find the project's gem stub.

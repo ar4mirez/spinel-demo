@@ -1,0 +1,35 @@
+#!/usr/bin/env bash
+# A Rack app on Puma, with puma-spinel and nio4r-spinel installed from a local
+# gem source. Runs bin/setup-puma first if tmp/gem-source is missing, which
+# needs git and Rust (cargo).
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "install puma-spinel and nio4r-spinel from the local gem source"
+[ -f tmp/gem-source/versions ] || bin/setup-puma
+start_server tmp/gem-source.log bin/gem-source
+wait_for http://127.0.0.1:9293/versions
+# Not --frozen: spinel 0.1.0's --frozen rejects a lockfile whose gems come
+# from a `source ... do` block (see README.md, "Known issues"). Check instead
+# that the install left the committed lockfile as it was.
+cp Gemfile.lock tmp/Gemfile.lock.before
+SPINEL_SUBSTITUTES=puma,nio4r spinel install
+cmp -s Gemfile.lock tmp/Gemfile.lock.before || fail "spinel install changed Gemfile.lock"
+stop_server
+expect "substitutes" "$(cat .spinel/substitutions.json)" '"substitute": "puma-spinel"'
+
+step "serve the Rack app"
+start_server tmp/puma.log spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292
+wait_for http://127.0.0.1:9292/health
+expect "GET /" "$(curl -fsS http://127.0.0.1:9292/)" "^Hello from spinel $pinned on Puma 8\.1\.2$"
+expect "GET /health" "$(curl -fsS http://127.0.0.1:9292/health)" '"engine":"spinel"'
+expect "POST /notes" "$(curl -fsS -X POST -d '{"text":"hi"}' http://127.0.0.1:9292/notes)" '^\{"created":"hi"\}$'
+expect "GET /notes" "$(curl -fsS http://127.0.0.1:9292/notes)" '^\{"notes":\["hi"\]\}$'
+expect "bad JSON" "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -d nope http://127.0.0.1:9292/notes)" '^400$'
+expect "404" "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9292/nope)" '^404$'
+expect "served by Puma" "$(cat tmp/puma.log)" "Puma version: 8\.1\.2"
+stop_server
+
+printf '\nrack-puma: all smoke checks passed\n'

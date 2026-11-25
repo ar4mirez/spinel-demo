@@ -1,4 +1,4 @@
 .spinel/
 .bundle/
 tmp/
-/hello
+examples/quickstart/hello
