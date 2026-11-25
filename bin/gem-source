@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+# Serves tmp/gem-source (made by bin/setup-puma) on http://127.0.0.1:9293/,
+# the source puma/Gemfile names. Stop it with Ctrl-C.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+[ -f tmp/gem-source/versions ] || { echo "gem-source: run bin/setup-puma first" >&2; exit 1; }
+exec spinel run gem-source/serve.rb tmp/gem-source "${PORT:-9293}"

@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Builds the gem source that puma/ installs Puma from (see README.md, "Puma").
+#
+# puma-spinel and nio4r-spinel are not on rubygems.org yet, so this clones
+# Spinel at the tag of the installed `spinel`, builds both gems with their
+# build.rb (cargo compiles the extensions), and writes a compact-index gem
+# source to tmp/gem-source. Needs git and Rust (cargo) on PATH.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+version=$(spinel --version | awk '{print $2}')
+src=tmp/spinel-v$version
+out=tmp/gem-source
+
+command -v cargo >/dev/null || { echo "setup-puma: cargo is needed to build the gems' extensions (https://rustup.rs)" >&2; exit 1; }
+if [ ! -d "$src" ]; then
+  git clone --quiet --depth 1 --branch "v$version" https://github.com/ar4mirez/spinel "$src"
+fi
+mkdir -p tmp/gems
+for gem in nio4r puma; do
+  (cd "$src" && spinel run "gems/$gem-spinel/build.rb" --out "$OLDPWD/tmp/gems")
+done
+spinel run gem-source/build.rb tmp/gems "$out"
