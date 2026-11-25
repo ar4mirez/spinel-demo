@@ -31,6 +31,8 @@ module JsonApi
       set :books, Store.new
     end
 
+    LOCK = Mutex.new
+
     # Raised by the helpers below; the error handler turns it into JSON.
     class Error < StandardError
       attr_reader :status, :code, :details
@@ -69,16 +71,20 @@ module JsonApi
     end
 
     patch "/authors/:id" do
-      find(settings.authors, "author")
-      json(data: settings.authors.update(id, validate(AUTHOR, body_object, partial: true)))
+      atomically do
+        find(settings.authors, "author")
+        json(data: settings.authors.update(id, validate(AUTHOR, body_object, partial: true)))
+      end
     end
 
     delete "/authors/:id" do
-      find(settings.authors, "author")
-      unless books_by(id).empty?
-        raise Error.new(409, "conflict", "author #{id} still has books; delete them first")
+      atomically do
+        find(settings.authors, "author")
+        unless books_by(id).empty?
+          raise Error.new(409, "conflict", "author #{id} still has books; delete them first")
+        end
+        settings.authors.delete(id)
       end
-      settings.authors.delete(id)
       status 204
       ""
     end
@@ -88,7 +94,8 @@ module JsonApi
     get "/books" do
       books = settings.books.all
       if params.key?("author_id")
-        books = books.select { |book| book["author_id"] == integer_param("author_id") }
+        author_id = integer_param("author_id")
+        books = books.select { |book| book["author_id"] == author_id }
       end
       if params.key?("tag")
         books = books.select { |book| Array(book["tags"]).include?(params["tag"]) }
@@ -98,8 +105,10 @@ module JsonApi
 
     post "/books" do
       attrs = validate(BOOK, body_object)
-      require_author(attrs["author_id"])
-      book = settings.books.create(attrs)
+      book = atomically do
+        require_author(attrs["author_id"])
+        settings.books.create(attrs)
+      end
       status 201
       headers "Location" => "/books/#{book["id"]}"
       json(data: book)
@@ -110,15 +119,19 @@ module JsonApi
     end
 
     patch "/books/:id" do
-      find(settings.books, "book")
-      attrs = validate(BOOK, body_object, partial: true)
-      require_author(attrs["author_id"]) if attrs.key?("author_id")
-      json(data: settings.books.update(id, attrs))
+      atomically do
+        find(settings.books, "book")
+        attrs = validate(BOOK, body_object, partial: true)
+        require_author(attrs["author_id"]) if attrs.key?("author_id")
+        json(data: settings.books.update(id, attrs))
+      end
     end
 
     delete "/books/:id" do
-      find(settings.books, "book")
-      settings.books.delete(id)
+      atomically do
+        find(settings.books, "book")
+        settings.books.delete(id)
+      end
       status 204
       ""
     end
@@ -129,6 +142,11 @@ module JsonApi
       e = env["sinatra.error"]
       status e.status
       error_body(e.code, e.message, e.details)
+    end
+
+    error Sinatra::BadRequest do
+      content_type :json
+      error_body("bad_request", env["sinatra.error"].message)
     end
 
     not_found do
@@ -151,6 +169,10 @@ module JsonApi
       end
 
       def id = integer_param("id")
+
+      # Writes that check one record and then change another run under one
+      # app-wide lock, so a check cannot go stale before its write lands.
+      def atomically(&) = LOCK.synchronize(&)
 
       def integer_param(name)
         value = params[name].to_s

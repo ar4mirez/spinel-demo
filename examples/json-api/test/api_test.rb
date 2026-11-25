@@ -88,6 +88,17 @@ class ApiTest < Minitest::Test
     assert_equal [], request("GET", "/authors")[1]["data"]
   end
 
+  def test_bad_author_id_filter_is_rejected_even_with_no_books
+    status, body, = request("GET", "/books?author_id=abc")
+    assert_equal [400, "bad_request"], [status, body["error"]["code"]]
+  end
+
+  def test_malformed_query_string_answers_json
+    response = @app.request("GET", "/books", "QUERY_STRING" => "tag=%zz")
+    assert_equal [400, "bad_request", "application/json"],
+                 [response.status, JSON.parse(response.body)["error"]["code"], response.media_type]
+  end
+
   def test_unicode_round_trips
     _, body, = request("POST", "/authors", { "name" => "Gabriel García Márquez ✓" })
     assert_equal "Gabriel García Márquez ✓", body["data"]["name"]

@@ -37,7 +37,7 @@ Every error has the same shape, with `details` only for validation errors:
 | Status | `code` | When |
 | --- | --- | --- |
 | 400 | `invalid_json` | the body does not parse |
-| 400 | `bad_request` | the body is JSON but not an object, or an id or `author_id` query parameter is not an integer |
+| 400 | `bad_request` | the body is JSON but not an object, an id or `author_id` query parameter is not an integer, or the query string is malformed |
 | 404 | `not_found` | no such record, or no such route |
 | 409 | `conflict` | deleting an author who still has books |
 | 415 | `unsupported_media_type` | a body sent without `Content-Type: application/json` |
@@ -53,7 +53,7 @@ Spinel 0.1.0 on your `PATH` (see the [top-level README](../../README.md#install-
 ```sh
 cd examples/json-api
 spinel install --frozen    # sinatra, rackup, webrick and minitest into .spinel/gem_home/
-spinel test                # 8 tests, 0 failures, 0 errors
+spinel test                # 10 tests, 0 failures, 0 errors
 spinel run app.rb          # serves on http://127.0.0.1:4580
 ```
 
