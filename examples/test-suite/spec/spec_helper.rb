@@ -2,8 +2,6 @@
 
 require_relative "../lib/cart"
 
-FIXTURES = File.expand_path("../fixtures", __dir__)
-
 RSpec.configure do |config|
   config.expect_with(:rspec) { |c| c.syntax = :expect }
   config.disable_monkey_patching!
@@ -13,5 +11,7 @@ end
 # `catalog` in every group that includes it: fixtures/catalog.yml, loaded
 # fresh for each example by `let`.
 RSpec.shared_context "catalog fixture" do
-  let(:catalog) { Cart::Catalog.load(File.join(FIXTURES, "catalog.yml")) }
+  fixtures = File.expand_path("../fixtures", __dir__)
+
+  let(:catalog) { Cart::Catalog.load(File.join(fixtures, "catalog.yml")) }
 end
