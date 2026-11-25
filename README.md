@@ -28,6 +28,7 @@ The smoke scripts also need `curl`.
 | [wordcount-cli](examples/wordcount-cli/) | A command-line tool with `OptionParser`, table and JSON output, and Minitest tests | |
 | [test-suite](examples/test-suite/) | A small library tested twice, with Minitest and with RSpec, sharing a YAML fixture: `spinel test` for both suites, one suite, `FILE:LINE`, JUnit output, failures, and `spinel x rspec` | |
 | [optparse-cli](examples/optparse-cli/) | A fuller CLI on `OptionParser`: subcommands, global and per-command flags, `--help` output, exit codes, and a single executable from `spinel build` | |
+| [static-site](examples/static-site/) | A static site generator: Markdown and ERB templates with YAML front matter rendered into an HTML site with `ERB`, `File`, `Dir` and `FileUtils` | |
 | [json-api](examples/json-api/) | A JSON API on Sinatra and WEBrick: two resources, request validation, JSON error responses, `JSON` parsing and generation, and a `Net::HTTP` client | |
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
 | [rack-middleware](examples/rack-middleware/) | Custom Rack middleware (request id, request logging, timing headers, bearer-token auth) stacked in `config.ru` in front of a small app, served by Puma, with Minitest tests | `git`, Rust (`cargo`) |

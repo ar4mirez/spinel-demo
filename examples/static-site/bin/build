@@ -1,0 +1,20 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/build [SOURCE [OUTPUT]]
+# Builds the site in SOURCE (default: site) into OUTPUT (default: tmp/public).
+
+require_relative "../lib/static_site"
+
+source, output, *rest = ARGV
+abort "usage: build [SOURCE [OUTPUT]]" unless rest.empty?
+source ||= "site"
+output ||= "tmp/public"
+
+begin
+  written = StaticSite.build(source, output)
+rescue StaticSite::Error => e
+  abort "build: #{e.message}"
+end
+written.each { |path| puts "  #{path}" }
+puts "built #{written.length} files into #{output} with #{RUBY_ENGINE} #{RUBY_ENGINE_VERSION}"

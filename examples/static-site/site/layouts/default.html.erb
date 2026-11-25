@@ -1,0 +1,27 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title><%= h page.title %> | <%= h site["title"] %></title>
+  <link rel="stylesheet" href="<%= url_for("style.css") %>">
+</head>
+<body>
+  <header>
+    <a class="site-title" href="<%= url_for("index.html") %>"><%= h site["title"] %></a>
+    <nav><%= link_to "Home", "index.html" %> <%= link_to "About", "about.html" %></nav>
+  </header>
+  <main>
+<% if page.date -%>
+    <article>
+      <h1><%= h page.title %></h1>
+      <p class="date"><time datetime="<%= page.date.iso8601 %>"><%= format_date(page.date) %></time></p>
+<%= content %>
+    </article>
+<% else -%>
+<%= content %>
+<% end -%>
+  </main>
+  <footer><%= h site["author"] %>. Built with <%= h RUBY_ENGINE %> <%= h RUBY_ENGINE_VERSION %>.</footer>
+</body>
+</html>
