@@ -32,7 +32,9 @@ summary: The first post, written in Markdown.
 Spinel runs this generator from one binary.
 ```
 
-Templates see `site`, `page`, `posts` (newest first) and, in layouts, `content`, plus the helpers `h` (HTML escape), `link_to`, `url_for` and `format_date`. Links are relative to the page, so the output works from any directory and when opened straight from disk. Each build empties the output directory first, so the builder only accepts an output directory strictly inside this example (`examples/static-site/`). It resolves the path first (`File.expand_path`, then `File.realpath`, so symlinks count where they lead) and refuses `/`, your home directory, the example directory or any of its parents, anywhere outside the example, a dangling symlink, and a directory holding the source, before it deletes or writes anything. Use a directory under `tmp/`, which git ignores.
+Two sources that would write the same output file (two posts with the same slug, a page and a post, or an asset and a page) stop the build with an error, as does front matter or `config.yml` that is not a YAML mapping of plain values (a timestamp, for example, is refused; write dates as `2026-11-02`).
+
+Templates see `site`, `page`, `posts` (newest first) and, in layouts, `content`, plus the helpers `h` (HTML escape), `link_to`, `url_for` and `format_date`. Links are relative to the page, so the output works from any directory and when opened straight from disk. Each build empties the output directory first, so the builder only accepts an output directory strictly inside this example (`examples/static-site/`). It resolves the path first (`File.expand_path`, then `File.realpath`, so symlinks count where they lead) and refuses `/`, your home directory, the example directory or any of its parents, anywhere outside the example, a dangling symlink, the source directory, a directory holding it, and a directory inside it, before it deletes or writes anything. Use a directory under `tmp/`, which git ignores.
 
 ## Prerequisites
 
@@ -43,7 +45,7 @@ Spinel 0.1.0 on your `PATH` (see the [top-level README](../../README.md#install-
 ```sh
 cd examples/static-site
 spinel install --frozen           # Minitest, for spinel test
-spinel test                       # 17 tests, 0 failures, 0 errors
+spinel test                       # 22 tests, 0 failures, 0 errors
 spinel run bin/build              # site/ -> tmp/public/
 spinel run bin/build site tmp/preview   # or name the source and an output directory under tmp/
 ```

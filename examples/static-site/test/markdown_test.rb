@@ -10,6 +10,17 @@ class MarkdownTest < Minitest::Test
     assert_equal %(<h1 id="hello-world">Hello, world</h1>\n<h3 id="three">Three</h3>), md("# Hello, world\n\n### Three ###")
   end
 
+  def test_heading_keeps_a_trailing_hash_that_is_part_of_the_text
+    assert_equal %(<h1 id="c">C#</h1>\n<h2 id="f">F# ##</h2>), md("# C#\n## F# ## ##")
+  end
+
+  def test_lines_starting_with_hash_that_are_not_headings_are_paragraphs
+    assert_equal "<p>#hashtag</p>", md("#hashtag")
+    assert_equal "<p>text\n#tag</p>", md("text\n#tag")
+    assert_equal "<p>#1 priority\n#\n####### seven</p>", md("#1 priority\n#\n####### seven")
+    assert_equal %(<p>text</p>\n<h2 id="next">Next</h2>), md("text\n## Next")
+  end
+
   def test_paragraphs_and_inline_formatting
     assert_equal "<p>One <em>two</em> <strong>three</strong>\n<code>a*b*c</code> <a href=\"https://x.test\">four</a></p>\n<p>Next</p>",
                  md("One *two* **three**\n`a*b*c` [four](https://x.test)\n\nNext")

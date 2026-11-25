@@ -10,6 +10,8 @@ module StaticSite
   module Markdown
     module_function
 
+    HEADING = /\A(\#{1,6})\s+(.*?)(?:\s+#+)?\s*\z/
+
     def to_html(source)
       lines = source.gsub("\r\n", "\n").split("\n", -1)
       html = []
@@ -19,7 +21,7 @@ module StaticSite
           lines.shift
         elsif line.start_with?("```")
           html << code_block(lines)
-        elsif (m = line.match(/\A(\#{1,6})\s+(.*?)\s*#*\s*\z/))
+        elsif (m = line.match(HEADING))
           lines.shift
           level = m[1].length
           html << "<h#{level} id=\"#{slug(m[2])}\">#{inline(m[2])}</h#{level}>"
@@ -64,7 +66,7 @@ module StaticSite
     end
 
     def block_start?(line)
-      line.start_with?("```", ">", "#") || line.match?(/\A([-*+]|\d+[.)])\s+/)
+      line.start_with?("```", ">") || line.match?(HEADING) || line.match?(/\A([-*+]|\d+[.)])\s+/)
     end
 
     def take_while(lines)

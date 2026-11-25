@@ -111,6 +111,48 @@ class BuilderTest < Minitest::Test
     assert_refused SITE, /source directory/
   end
 
+  def test_refuses_a_directory_inside_the_source
+    assert_refused File.join(SITE, "assets"), /inside the source directory/
+    assert_refused File.join(SITE, "pages", "new"), /inside the source directory/
+    assert File.file?(File.join(SITE, "assets", "style.css"))
+  end
+
+  def source(files)
+    src = File.join(@dir, "src")
+    files = { "layouts/default.html.erb" => "<%= content %>" }.merge(files)
+    files.each do |rel, text|
+      FileUtils.mkdir_p(File.dirname(File.join(src, rel)))
+      File.write(File.join(src, rel), text)
+    end
+    src
+  end
+
+  def assert_build_fails(files, pattern)
+    FileUtils.mkdir_p(out)
+    File.write(out("keep.html"), "old")
+    error = assert_raises(StaticSite::Error) { build(source(files)) }
+    assert_match pattern, error.message
+    assert File.exist?(out("keep.html")), "the output was emptied before the error"
+  end
+
+  def test_refuses_two_sources_with_the_same_output_path
+    assert_build_fails({ "posts/2026-01-01-a.md" => "one", "posts/2026-02-01-a.md" => "two" }, %r{writes posts/a\.html})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "posts/2026-01-01-a.md" => "one", "pages/posts/a.md" => "two" }, %r{writes posts/a\.html})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "pages/index.md" => "one", "assets/index.html" => "two" }, /writes index\.html/)
+  end
+
+  def test_yaml_that_is_not_allowed_is_a_build_error
+    assert_build_fails({ "pages/x.md" => "---\ndate: 2026-11-02 10:00:00\n---\nhi\n" }, %r{pages/x\.md: bad front matter})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "pages/x.md" => "---\na: &a 1\nb: *a\n---\nhi\n" }, %r{pages/x\.md: bad front matter})
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "config.yml" => "- a list\n" }, /config\.yml: config must be a mapping/)
+    FileUtils.rm_rf(File.join(@dir, "src"))
+    assert_build_fails({ "config.yml" => "when: 2026-11-02 10:00:00\n" }, /config\.yml: bad config/)
+  end
+
   def test_builds_into_a_new_directory_inside_the_example
     target = File.join(@dir, "new", "site")
     written = StaticSite.build(SITE, target)

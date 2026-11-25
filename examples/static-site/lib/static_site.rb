@@ -61,8 +61,9 @@ module StaticSite
 
   # Resolves `output` the way the file system will (following symlinks in the
   # part that exists) and returns it if it is safe to empty and write: strictly
-  # inside ROOT, and not "/", HOME, an ancestor of ROOT, or a directory holding
-  # `source`. Anything else raises Error, before anything is touched.
+  # inside ROOT, and not "/", HOME, an ancestor of ROOT, `source`, a directory
+  # holding it, or a directory inside it. Anything else raises Error, before
+  # anything is touched.
   def self.safe_output(output, source)
     path = resolve(output)
     root = File.realpath(ROOT)
@@ -75,6 +76,7 @@ module StaticSite
     refuse.("it is outside #{root}") unless path.start_with?("#{root}/")
     src = resolve(source)
     refuse.("it contains the source directory") if src == path || src.start_with?("#{path}/")
+    refuse.("it is inside the source directory") if path.start_with?("#{src}/")
     path
   end
 
@@ -110,6 +112,9 @@ module StaticSite
       layouts = load_layouts
       posts = load_posts.sort_by { |p| [p.date, p.path] }.reverse
       pages = load_pages(posts, config)
+      assets = load_assets
+      twice = ((posts + pages).map(&:path) + assets.keys).tally.select { |_, n| n > 1 }.keys
+      raise Error, "more than one source writes #{twice.sort.join(", ")}" unless twice.empty?
 
       # Check again right before deleting, in case a symlink changed since.
       raise Error, "refusing to write to #{@requested}: it moved" unless StaticSite.safe_output(output, source) == output
@@ -121,14 +126,14 @@ module StaticSite
         html = Context.new(site: config, page: page, posts: posts, content: page.body).render(layout)
         write(page.path, html)
       end
-      written.concat(copy_assets).sort
+      written.concat(copy_assets(assets)).sort
     end
 
     private
 
     def load_config
       path = File.join(source, "config.yml")
-      File.exist?(path) ? YAML.safe_load_file(path) || {} : {}
+      File.exist?(path) ? yaml_mapping(File.read(path), path, "config") : {}
     end
 
     def load_layouts
@@ -167,12 +172,16 @@ module StaticSite
       m = text.match(FRONT_MATTER)
       return [{}, text] unless m
 
-      data = YAML.safe_load(m[1], permitted_classes: [Date]) || {}
-      raise Error, "#{relative(path)}: front matter must be a mapping" unless data.is_a?(Hash)
+      [yaml_mapping(m[1], path, "front matter"), m.post_match]
+    end
 
-      [data, m.post_match]
-    rescue Psych::SyntaxError => e
-      raise Error, "#{relative(path)}: bad front matter: #{e.message}"
+    def yaml_mapping(text, path, what)
+      data = YAML.safe_load(text, permitted_classes: [Date]) || {}
+      raise Error, "#{relative(path)}: #{what} must be a mapping" unless data.is_a?(Hash)
+
+      data
+    rescue Psych::Exception => e
+      raise Error, "#{relative(path)}: bad #{what}: #{e.message}"
     end
 
     def template(text, path)
@@ -181,10 +190,14 @@ module StaticSite
       erb
     end
 
-    def copy_assets
+    # Asset paths relative to the output, mapped to their source files.
+    def load_assets
       dir = File.join(source, "assets")
-      Dir.glob(File.join(dir, "**", "*")).select { |f| File.file?(f) }.map do |path|
-        rel = path.delete_prefix("#{dir}/")
+      Dir.glob(File.join(dir, "**", "*")).select { |f| File.file?(f) }.to_h { |path| [path.delete_prefix("#{dir}/"), path] }
+    end
+
+    def copy_assets(assets)
+      assets.map do |rel, path|
         FileUtils.mkdir_p(File.dirname(File.join(output, rel)))
         FileUtils.cp(path, File.join(output, rel))
         rel
