@@ -9,7 +9,7 @@ A background job queue on Spinel: a producer (`bin/enqueue`) adds jobs, and long
 | [lib/job_worker/jobs.rb](lib/job_worker/jobs.rb) | The job types: `square N`, `fib N`, `wordcount TEXT...`, `sleep MS`, `flaky` (fails once, then succeeds) and `boom` (always fails) |
 | [bin/enqueue](bin/enqueue) | `enqueue TYPE [ARG...]` adds one job; `enqueue --demo` adds one of each type |
 | [bin/worker](bin/worker) | `worker [--threads N] [--drain]` runs jobs until SIGINT or SIGTERM, or with `--drain` until the queue is empty |
-| [bin/status](bin/status) | `status [--json]` shows how many jobs are in each state, and the finished and failed jobs |
+| [bin/status](bin/status) | `status` shows how many jobs are in each state, and the finished and failed jobs |
 | [test/](test/) | Minitest tests for the queue (including threads and forked processes racing for jobs), the job types and the worker |
 
 ## How the queue works

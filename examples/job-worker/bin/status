@@ -1,20 +1,15 @@
 #!/usr/bin/env spinel
 # frozen_string_literal: true
 
-# Usage: spinel run bin/status [--json]
+# Usage: spinel run bin/status
 # Prints how many jobs are in each state, and the finished and failed jobs.
 
 require_relative "../lib/job_worker"
 
+abort "usage: status" unless ARGV.empty?
+
 queue = JobWorker.queue
 counts = queue.counts
-if ARGV == ["--json"]
-  puts JSON.generate(counts.merge(
-    "done_jobs" => queue.jobs("done").map(&:data), "failed_jobs" => queue.jobs("failed").map(&:data)
-  ))
-  exit
-end
-abort "usage: status [--json]" unless ARGV.empty?
 
 puts counts.map { |state, n| "#{state} #{n}" }.join(", ")
 queue.jobs("done").each { |j| puts "  done   #{j.type} #{JSON.generate(j.args)} -> #{JSON.generate(j.data["result"])} by #{j.data["worker"]}" }
