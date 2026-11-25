@@ -47,7 +47,7 @@ curl -i http://127.0.0.1:9310/                              # x-request-id, x-ru
 curl -H 'X-Request-Id: abc' http://127.0.0.1:9310/whoami    # {"request_id":"abc","user":null}
 curl -i http://127.0.0.1:9310/admin/stats                   # 401, www-authenticate: Bearer realm="admin"
 curl -H 'Authorization: Bearer demo-token' http://127.0.0.1:9310/admin/stats
-                                                            # {"user":"admin","hits":4,"engine":"spinel"}
+                                                            # {"user":"admin","hits":3,"engine":"spinel"}
 ```
 
 Puma's terminal shows one line per request from `RequestLogger`:
