@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# The wordcount CLI: its tests, table and JSON output, options, and errors.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "bin/wordcount"
+sample="the cat and the hat, the cat sat"
+expect "table" "$(echo "$sample" | spinel run bin/wordcount -n 2)" "1\. the +3"
+expect "json" "$(echo "$sample" | spinel run bin/wordcount -n 1 -f json)" '"word": "the"'
+expect "file and options" "$(spinel run bin/wordcount -m 4 -i spinel README.md)" "words, [0-9]+ unique$"
+expect "--version after --" "$(spinel run bin/wordcount -- --version)" "^wordcount on spinel $pinned "
+if spinel run bin/wordcount no-such-file 2>tmp/wc.err; then fail "missing file should exit non-zero"; fi
+expect "missing file" "$(cat tmp/wc.err)" "no such file: no-such-file"
+
+printf '\nwordcount-cli: all smoke checks passed\n'

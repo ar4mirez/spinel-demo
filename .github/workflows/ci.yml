@@ -1,0 +1,34 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  list:
+    name: List examples
+    runs-on: ubuntu-latest
+    outputs:
+      examples: ${{ steps.list.outputs.examples }}
+    steps:
+      - uses: actions/checkout@v4
+      - id: list
+        run: echo "examples=$(bin/smoke --list | jq -Rnc '[inputs]')" >> "$GITHUB_OUTPUT"
+
+  smoke:
+    name: ${{ matrix.example }}
+    needs: list
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        example: ${{ fromJSON(needs.list.outputs.examples) }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Spinel (pinned in mise.toml)
+        uses: jdx/mise-action@v2
+      - run: spinel --version
+      - run: bin/smoke "${{ matrix.example }}"

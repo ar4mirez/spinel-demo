@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the gem source that puma/ installs Puma from (see README.md, "Puma").
+# Builds the gem source that this example installs Puma from (see README.md).
 #
 # puma-spinel and nio4r-spinel are not on rubygems.org yet, so this clones
 # Spinel at the tag of the installed `spinel`, builds both gems with their

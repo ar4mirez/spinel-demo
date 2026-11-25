@@ -1,0 +1,34 @@
+#!/usr/bin/env bash
+# The Spinel README's quick start: Sinatra on WEBrick, spinel test, spinel x,
+# spinel build --compile and spinel -e.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "Sinatra on WEBrick"
+start_server tmp/app.log spinel run app.rb
+wait_for http://localhost:4567/
+expect "GET /" "$(curl -fsS http://localhost:4567/)" "^Hello from spinel $pinned$"
+stop_server
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+step "spinel x rake --version"
+expect "spinel x rake" "$(spinel x rake --version)" "^rake, version "
+
+step "spinel build --compile"
+spinel build --compile app.rb -o tmp/hello
+start_server tmp/hello.log ./tmp/hello
+wait_for http://localhost:4567/
+expect "compiled GET /" "$(curl -fsS http://localhost:4567/)" "^Hello from spinel $pinned$"
+stop_server
+
+step "spinel -e"
+expect "RUBY_VERSION" "$(spinel -e 'puts RUBY_VERSION')" "^4\.0\.0$"
+
+printf '\nquickstart: all smoke checks passed\n'
