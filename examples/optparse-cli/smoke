@@ -1,0 +1,51 @@
+#!/usr/bin/env bash
+# The todo CLI: its tests, subcommands, --help output, exit codes, and a
+# single executable built with spinel build.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+# status COMMAND...: runs COMMAND, prints its exit status, keeps its stderr in tmp/err
+status() { local s=0; "$@" >/dev/null 2>tmp/err || s=$?; echo "$s"; }
+
+step "spinel run bin/todo"
+export TODO_FILE=tmp/todo.json
+rm -f "$TODO_FILE"
+expect "add" "$(spinel run bin/todo add -p high buy milk)" "^added #1: buy milk$"
+expect "add" "$(spinel run bin/todo add write the docs)" "^added #2: write the docs$"
+expect "done" "$(spinel run bin/todo done 1)" "^done #1$"
+expect "list" "$(spinel run bin/todo list)" "^  2  \[ \]  normal  write the docs$"
+expect "list --all" "$(spinel run bin/todo list --all)" "^  1  \[x\]  high    buy milk$"
+expect "list --format json" "$(spinel run bin/todo list --format json)" '"text": "write the docs"'
+expect "--file" "$(spinel run bin/todo --file tmp/other.json list)" "^no tasks$"
+expect "rm" "$(spinel run bin/todo rm 2)" "^removed #2: write the docs$"
+
+step "help and version"
+expect "help" "$(spinel run bin/todo help)" "^Usage: todo \[options\] COMMAND"
+expect "-- --help" "$(spinel run bin/todo -- --help)" "^Exit status: 0 on success"
+expect "help add" "$(spinel run bin/todo help add)" "^Usage: todo add \[options\] TEXT\.\.\.$"
+expect "list --help" "$(spinel run bin/todo list --help)" "--format FORMAT +table \(default\) or json"
+expect "--version after --" "$(spinel run bin/todo -- --version)" "^todo [0-9.]+ \(spinel $pinned, ruby "
+
+step "exit codes"
+expect "missing task exits 1" "$(status spinel run bin/todo done 9)" "^1$"
+expect "missing task message" "$(cat tmp/err)" "^todo: no task #9 in tmp/todo.json$"
+expect "unknown command exits 2" "$(status spinel run bin/todo bogus)" "^2$"
+expect "unknown command message" "$(cat tmp/err)" "^todo: unknown command 'bogus'$"
+expect "bad option value exits 2" "$(status spinel run bin/todo add -p urgent x)" "^2$"
+expect "bad option value hint" "$(cat tmp/err)" "^Run 'todo help add' for usage\.$"
+
+step "spinel build --compile"
+spinel build --compile bin/todo -o tmp/todo
+expect "built --help" "$(./tmp/todo --help)" "^Usage: todo \[options\] COMMAND"
+expect "built list" "$(./tmp/todo list --all)" "^  1  \[x\]  high    buy milk$"
+expect "built exit code" "$(status ./tmp/todo rm 42)" "^1$"
+
+printf '\noptparse-cli: all smoke checks passed\n'

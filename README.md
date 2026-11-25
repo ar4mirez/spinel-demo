@@ -26,6 +26,7 @@ The smoke scripts also need `curl`.
 | --- | --- | --- |
 | [quickstart](examples/quickstart/) | The Spinel README's quick start: Sinatra on WEBrick, `spinel test`, `spinel x`, `spinel build --compile`, `spinel -e` | |
 | [wordcount-cli](examples/wordcount-cli/) | A command-line tool with `OptionParser`, table and JSON output, and Minitest tests | |
+| [optparse-cli](examples/optparse-cli/) | A fuller CLI on `OptionParser`: subcommands, global and per-command flags, `--help` output, exit codes, and a single executable from `spinel build` | |
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
 
 Run one example by following its README, or check them with the smoke scripts:
@@ -80,4 +81,5 @@ The upstream fix is tracked in [ar4mirez/spinel#902](https://github.com/ar4mirez
 Each example's README lists the Spinel issues it works around:
 
 - [wordcount-cli](examples/wordcount-cli/README.md#known-issues-spinel-010): `spinel FILE --help` (and `-h`, `--version`, `-v`) prints Spinel's output instead of passing the flag on; put `--` first.
+- [optparse-cli](examples/optparse-cli/README.md#known-issues-spinel-010): the same `--help` interception ([ar4mirez/spinel#895](https://github.com/ar4mirez/spinel/issues/895)); use `--`, the `help` command, or the `spinel build` executable.
 - [rack-puma](examples/rack-puma/README.md#known-issues-spinel-010): `spinel install --frozen` rejects gems from a `source "..." do` block, and `spinel run -S puma` does not find the project's gem stub.
