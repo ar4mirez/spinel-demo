@@ -1,0 +1,9 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/todo [options] COMMAND [command options] [ARGS]
+# A small task list kept in a JSON file. Run `spinel run bin/todo help`.
+
+require_relative "../lib/todo/cli"
+
+exit Todo::CLI.new.run(ARGV)
