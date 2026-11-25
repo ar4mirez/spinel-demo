@@ -26,6 +26,7 @@ The smoke scripts also need `curl`.
 | --- | --- | --- |
 | [quickstart](examples/quickstart/) | The Spinel README's quick start: Sinatra on WEBrick, `spinel test`, `spinel x`, `spinel build --compile`, `spinel -e` | |
 | [wordcount-cli](examples/wordcount-cli/) | A command-line tool with `OptionParser`, table and JSON output, and Minitest tests | |
+| [test-suite](examples/test-suite/) | A small library tested twice, with Minitest and with RSpec, sharing a YAML fixture: `spinel test` for both suites, one suite, `FILE:LINE`, JUnit output, failures, and `spinel x rspec` | |
 | [optparse-cli](examples/optparse-cli/) | A fuller CLI on `OptionParser`: subcommands, global and per-command flags, `--help` output, exit codes, and a single executable from `spinel build` | |
 | [json-api](examples/json-api/) | A JSON API on Sinatra and WEBrick: two resources, request validation, JSON error responses, `JSON` parsing and generation, and a `Net::HTTP` client | |
 | [rack-puma](examples/rack-puma/) | A Rack JSON app served by Puma, using Spinel's `puma-spinel` and `nio4r-spinel` substitutes from a local gem source | `git`, Rust (`cargo`) |
@@ -84,5 +85,6 @@ Each example's README lists the Spinel issues it works around:
 
 - [wordcount-cli](examples/wordcount-cli/README.md#known-issues-spinel-010): `spinel FILE --help` (and `-h`, `--version`, `-v`) prints Spinel's output instead of passing the flag on; put `--` first.
 - [optparse-cli](examples/optparse-cli/README.md#known-issues-spinel-010): the same `--help` interception ([ar4mirez/spinel#895](https://github.com/ar4mirez/spinel/issues/895)); use `--`, the `help` command, or the `spinel build` executable.
+- [test-suite](examples/test-suite/README.md#known-issues-spinel-010): `spinel test DIR` fails with "no such file" ([ar4mirez/spinel#910](https://github.com/ar4mirez/spinel/issues/910)); pass the files (`spinel test spec/*_spec.rb`).
 - [rack-puma](examples/rack-puma/README.md#known-issues-spinel-010): `spinel install --frozen` rejects gems from a `source "..." do` block, and `spinel run -S puma` does not find the project's gem stub.
 - [rack-middleware](examples/rack-middleware/README.md#known-issues-spinel-010): the same two Puma install issues as rack-puma.

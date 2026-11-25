@@ -1,0 +1,18 @@
+# The catalog both test suites load: products priced in cents, and coupons.
+products:
+  BOOK-RUBY:
+    name: The Ruby Book
+    price_cents: 3999
+    taxable: false
+  MUG:
+    name: Spinel mug
+    price_cents: 1250
+  STICKERS:
+    name: Sticker pack
+    price_cents: 499
+coupons:
+  WELCOME10:
+    percent_off: 10
+  BIG25:
+    percent_off: 25
+    min_subtotal_cents: 10000
