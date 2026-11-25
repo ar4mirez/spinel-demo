@@ -23,7 +23,8 @@ class NotesApp
     in ["GET", "/notes"]
       json({notes: @lock.synchronize { @notes.dup }})
     in ["POST", "/notes"]
-      note = JSON.parse(req.body.read)["text"]
+      body = JSON.parse(req.body.read)
+      note = body["text"] if body.is_a?(Hash)
       return error(422, "missing text") unless note.is_a?(String)
 
       @lock.synchronize { @notes << note }

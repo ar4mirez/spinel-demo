@@ -18,7 +18,7 @@ require "net/http"
 require "rubygems/package"
 require "time"
 
-UPSTREAM = ENV.fetch("UPSTREAM_INDEX", "https://rubygems.org")
+UPSTREAM = "https://rubygems.org"
 
 gem_dir, out_dir = ARGV
 abort "usage: spinel run #{$0} GEM_DIR OUT_DIR" unless gem_dir && out_dir

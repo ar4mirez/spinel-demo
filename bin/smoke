@@ -8,9 +8,9 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
-pids=()
-cleanup() { for pid in "${pids[@]}"; do kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; done; }
-trap cleanup EXIT
+server=
+stop_server() { [ -n "$server" ] || return 0; kill "$server" 2>/dev/null || true; wait "$server" 2>/dev/null || true; server=; }
+trap stop_server EXIT
 
 step() { printf '\n== %s\n' "$*"; }
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -22,7 +22,6 @@ wait_for() { # wait_for URL: polls until the server answers, up to 60s
   for _ in $(seq 1 120); do curl -fsS -o /dev/null "$1" 2>/dev/null && return 0; sleep 0.5; done
   fail "no answer from $1"
 }
-stop_last() { local pid=${pids[-1]}; kill "$pid"; wait "$pid" 2>/dev/null || true; unset 'pids[-1]'; }
 
 mkdir -p tmp
 pinned=$(sed -nE 's/^"github:ar4mirez\/spinel" = "(.*)"/\1/p' mise.toml)
@@ -33,10 +32,10 @@ step "quick start: spinel install --frozen"
 spinel install --frozen
 
 step "quick start: Sinatra on WEBrick"
-spinel run app.rb >tmp/app.log 2>&1 & pids+=($!)
+spinel run app.rb >tmp/app.log 2>&1 & server=$!
 wait_for http://localhost:4567/
 expect "GET /" "$(curl -fsS http://localhost:4567/)" "^Hello from spinel $pinned$"
-stop_last
+stop_server
 
 step "quick start: spinel test"
 expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests, 0 failures, 0 errors"
@@ -46,10 +45,10 @@ expect "spinel x rake" "$(spinel x rake --version)" "^rake, version "
 
 step "quick start: spinel build --compile"
 spinel build --compile app.rb -o tmp/hello
-./tmp/hello >tmp/hello.log 2>&1 & pids+=($!)
+./tmp/hello >tmp/hello.log 2>&1 & server=$!
 wait_for http://localhost:4567/
 expect "compiled GET /" "$(curl -fsS http://localhost:4567/)" "^Hello from spinel $pinned$"
-stop_last
+stop_server
 
 step "quick start: spinel -e"
 expect "RUBY_VERSION" "$(spinel -e 'puts RUBY_VERSION')" "^4\.0\.0$"
@@ -69,7 +68,7 @@ fi
 
 step "Puma: install puma-spinel and nio4r-spinel from the local gem source"
 [ -f tmp/gem-source/versions ] || bin/setup-puma
-bin/gem-source >tmp/gem-source.log 2>&1 & pids+=($!)
+bin/gem-source >tmp/gem-source.log 2>&1 & server=$!
 wait_for http://127.0.0.1:9293/versions
 # Not --frozen: spinel 0.1.0's --frozen rejects a lockfile whose gems come
 # from a `source ... do` block (see README.md, "Known issues"). Check instead
@@ -77,11 +76,11 @@ wait_for http://127.0.0.1:9293/versions
 cp puma/Gemfile.lock tmp/puma-Gemfile.lock
 (cd puma && SPINEL_SUBSTITUTES=puma,nio4r spinel install)
 cmp -s puma/Gemfile.lock tmp/puma-Gemfile.lock || fail "spinel install changed puma/Gemfile.lock"
-stop_last
+stop_server
 expect "substitutes" "$(cat puma/.spinel/substitutions.json)" '"substitute": "puma-spinel"'
 
 step "Puma: serve the Rack app"
-(cd puma && exec spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292) >tmp/puma.log 2>&1 & pids+=($!)
+(cd puma && exec spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9292) >tmp/puma.log 2>&1 & server=$!
 wait_for http://127.0.0.1:9292/health
 expect "GET /" "$(curl -fsS http://127.0.0.1:9292/)" "^Hello from spinel $pinned on Puma 8\.1\.2$"
 expect "GET /health" "$(curl -fsS http://127.0.0.1:9292/health)" '"engine":"spinel"'
@@ -90,6 +89,6 @@ expect "GET /notes" "$(curl -fsS http://127.0.0.1:9292/notes)" '^\{"notes":\["hi
 expect "bad JSON" "$(curl -sS -o /dev/null -w '%{http_code}' -X POST -d nope http://127.0.0.1:9292/notes)" '^400$'
 expect "404" "$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:9292/nope)" '^404$'
 expect "served by Puma" "$(cat tmp/puma.log)" "Puma version: 8\.1\.2"
-stop_last
+stop_server
 
 printf '\nall smoke checks passed\n'

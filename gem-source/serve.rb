@@ -2,16 +2,16 @@
 
 # Serves a directory written by gem-source/build.rb as a gem source:
 #
-#   spinel run gem-source/serve.rb DIR [PORT]   # default port 9293
+#   spinel run gem-source/serve.rb DIR   # on http://127.0.0.1:9293/
 
 require "webrick"
 
-dir, port = ARGV
-abort "usage: spinel run #{$0} DIR [PORT]" unless dir && File.file?(File.join(dir, "versions"))
+dir = ARGV.first
+abort "usage: spinel run #{$0} DIR" unless dir && File.file?(File.join(dir, "versions"))
 
 server = WEBrick::HTTPServer.new(
   BindAddress: "127.0.0.1",
-  Port: Integer(port || 9293),
+  Port: 9293,
   DocumentRoot: dir,
   AccessLog: [],
   Logger: WEBrick::Log.new($stderr, WEBrick::Log::WARN),

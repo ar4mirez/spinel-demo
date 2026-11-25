@@ -4,4 +4,4 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 [ -f tmp/gem-source/versions ] || { echo "gem-source: run bin/setup-puma first" >&2; exit 1; }
-exec spinel run gem-source/serve.rb tmp/gem-source "${PORT:-9293}"
+exec spinel run gem-source/serve.rb tmp/gem-source
