@@ -37,7 +37,7 @@ spinel test                                    # 7 tests, 0 failures, 0 errors
 Stop `bin/gem-source`, then serve the app:
 
 ```sh
-API_TOKEN=s3cret spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9310
+API_TOKEN=demo-token spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9310
 ```
 
 And try it from a third terminal:
@@ -46,7 +46,7 @@ And try it from a third terminal:
 curl -i http://127.0.0.1:9310/                              # x-request-id, x-runtime, server-timing headers
 curl -H 'X-Request-Id: abc' http://127.0.0.1:9310/whoami    # {"request_id":"abc","user":null}
 curl -i http://127.0.0.1:9310/admin/stats                   # 401, www-authenticate: Bearer realm="admin"
-curl -H 'Authorization: Bearer s3cret' http://127.0.0.1:9310/admin/stats
+curl -H 'Authorization: Bearer demo-token' http://127.0.0.1:9310/admin/stats
                                                             # {"user":"admin","hits":4,"engine":"spinel"}
 ```
 
@@ -58,7 +58,7 @@ GET /admin/stats 401 0.56ms id=e5a617163ec681f9
 GET /admin/stats 200 0.82ms id=99595bea3d8389a1
 ```
 
-`API_TOKEN` defaults to `secret` when it is not set.
+`API_TOKEN` is required: Puma fails to boot `config.ru` without it, so the example never ships a default token for `/admin`.
 
 ## Smoke check
 

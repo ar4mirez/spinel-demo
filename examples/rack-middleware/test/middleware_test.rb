@@ -59,8 +59,10 @@ class MiddlewareTest < Minitest::Test
   end
 
   def test_config_ru_stack
+    previous = ENV["API_TOKEN"]
+    ENV["API_TOKEN"] = "demo-token"
     app, = Rack::Builder.parse_file(File.expand_path("../config.ru", __dir__))
-    res = request(app, "/admin/stats", "HTTP_AUTHORIZATION" => "Bearer secret", "HTTP_X_REQUEST_ID" => "t1")
+    res = request(app, "/admin/stats", "HTTP_AUTHORIZATION" => "Bearer demo-token", "HTTP_X_REQUEST_ID" => "t1")
     assert_equal 200, res.status
     assert_equal "t1", res.headers["x-request-id"]
     assert res.headers["x-runtime"]
@@ -70,5 +72,7 @@ class MiddlewareTest < Minitest::Test
     res = request(app, "/admin/stats")
     assert_equal 401, res.status
     assert_equal "t1", request(app, "/whoami", "HTTP_X_REQUEST_ID" => "t1").headers["x-request-id"]
+  ensure
+    ENV["API_TOKEN"] = previous
   end
 end

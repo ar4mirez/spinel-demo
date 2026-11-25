@@ -24,7 +24,7 @@ step "spinel test (each middleware, and the config.ru stack, through Rack::MockR
 expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
 
 step "serve config.ru with Puma"
-start_server tmp/puma.log env API_TOKEN=smoke-token spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9310
+start_server tmp/puma.log env API_TOKEN=demo-token spinel run .spinel/gem_home/bin/puma -b tcp://127.0.0.1:9310
 wait_for http://127.0.0.1:9310/
 url=http://127.0.0.1:9310
 
@@ -40,7 +40,7 @@ expect "request id in env" "$(curl -fsS -H 'X-Request-Id: smoke-2' "$url/whoami"
 expect "no token" "$(curl -sS -o /dev/null -w '%{http_code}' "$url/admin/stats")" '^401$'
 expect "www-authenticate" "$(curl -sS -D - -o /dev/null "$url/admin/stats")" '^www-authenticate: Bearer realm="admin"'
 expect "wrong token" "$(curl -sS -o /dev/null -w '%{http_code}' -H 'Authorization: Bearer nope' "$url/admin/stats")" '^401$'
-expect "right token" "$(curl -fsS -H 'Authorization: Bearer smoke-token' "$url/admin/stats")" '^\{"user":"admin","hits":[0-9]+,"engine":"spinel"\}$'
+expect "right token" "$(curl -fsS -H 'Authorization: Bearer demo-token' "$url/admin/stats")" '^\{"user":"admin","hits":[0-9]+,"engine":"spinel"\}$'
 expect "404" "$(curl -sS -o /dev/null -w '%{http_code}' "$url/nope")" '^404$'
 
 log=$(cat tmp/puma.log)
