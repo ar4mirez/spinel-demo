@@ -1,0 +1,98 @@
+#!/usr/bin/env bash
+# The job queue: its tests, a draining worker, two long-running worker
+# processes sharing the queue, a graceful stop on SIGTERM, and recovery of a
+# job whose worker was killed.
+set -euo pipefail
+cd "$(dirname "$0")"
+# shellcheck source-path=SCRIPTDIR
+. ../../lib/smoke.sh
+
+# Background workers this script starts; all of them are stopped on exit.
+workers=()
+stop_workers() {
+  for pid in "${workers[@]}"; do kill "$pid" 2>/dev/null || true; wait "$pid" 2>/dev/null || true; done
+  workers=()
+}
+trap 'stop_workers; stop_server' EXIT
+start_worker() { # start_worker LOG [ARG...]: sets $worker to the new worker's pid
+  local log=$1; shift
+  spinel run bin/worker "$@" >"$log" 2>&1 & worker=$!
+  workers+=("$worker")
+}
+status() { spinel run bin/status | head -1; }
+wait_until() { # wait_until DESCRIPTION PATTERN: polls bin/status, up to 60s
+  for _ in $(seq 1 120); do grep -qE -- "$2" <<<"$(status)" && { echo "ok: $1"; return 0; }; sleep 0.5; done
+  fail "$1: expected /$2/, got: $(status)"
+}
+
+step "spinel install --frozen"
+spinel install --frozen
+
+step "spinel test"
+expect "spinel test" "$(spinel test 2>&1)" "[0-9]+ tests?, 0 failures, 0 errors"
+
+# The queue lives in this example's tmp/queue; start each run with an empty one.
+rm -rf tmp/queue
+
+step "spinel run bin/enqueue --demo, then a draining worker"
+expect "enqueue" "$(spinel run bin/enqueue --demo | wc -l | tr -d ' ')" "^6$"
+expect "all pending" "$(status)" "^pending 6, running 0, done 0, failed 0$"
+log=$(spinel run bin/worker --drain --threads 3)
+expect "worker started" "$log" "^worker [0-9]+ started with 3 threads \(drain\)"
+expect "square" "$log" "done square .* -> 49 "
+expect "fib" "$log" "done fib .* -> 2880067194370816120 "
+expect "flaky retried" "$log" "will retry flaky .*\(attempt 1 of 3\)"
+expect "flaky done" "$log" 'done flaky .* -> "ok on attempt 2"'
+expect "boom gave up" "$log" "failed boom .*: boom \(attempt 3 of 3\)"
+expect "worker drained" "$log" "stopped: 5 done, 1 failed$"
+report=$(spinel run bin/status)
+expect "status" "$report" "^pending 0, running 0, done 5, failed 1$"
+expect "status result" "$report" 'done +wordcount \["the cat and the hat"\] -> \{"words":5,"top":"the"\}'
+expect "status failure" "$report" "failed boom \[\]: RuntimeError: boom after 3 attempts"
+
+step "two long-running workers share the queue"
+start_worker tmp/worker1.log
+w1=$worker
+start_worker tmp/worker2.log --threads 3
+w2=$worker
+for _ in $(seq 1 20); do spinel run bin/enqueue sleep 100 >/dev/null; done
+wait_until "20 jobs added while the workers run are done" "^pending 0, running 0, done 25, failed 1$"
+ran=$(cat tmp/worker1.log tmp/worker2.log | grep -c "done sleep .* -> 100 " || true)
+expect "each job ran once" "$ran" "^20$"
+grep -q "done sleep" tmp/worker1.log || fail "worker 1 ran no jobs"
+grep -q "done sleep" tmp/worker2.log || fail "worker 2 ran no jobs"
+echo "ok: both worker processes ran jobs"
+
+step "SIGTERM: the workers finish the running job, then exit"
+spinel run bin/enqueue sleep 1500 >/dev/null
+wait_until "slow job claimed" "running 1,"
+kill -TERM "$w1" "$w2"
+wait "$w1" || fail "worker 1 exited with $?"
+wait "$w2" || fail "worker 2 exited with $?"
+workers=()
+expect "worker 1 stopped" "$(tail -1 tmp/worker1.log)" "^worker $w1 stopped: [0-9]+ done, 0 failed$"
+expect "worker 2 stopped" "$(tail -1 tmp/worker2.log)" "^worker $w2 stopped: [0-9]+ done, 0 failed$"
+expect "slow job finished" "$(cat tmp/worker1.log tmp/worker2.log)" "done sleep .* -> 1500 "
+expect "nothing left running" "$(status)" "^pending 0, running 0, done 26, failed 1$"
+
+step "a killed worker's job is recovered"
+spinel run bin/enqueue sleep 5000 >/dev/null
+start_worker tmp/worker3.log
+w3=$worker
+wait_until "job claimed" "running 1,"
+kill -KILL "$w3"
+wait "$w3" 2>/dev/null || true
+workers=()
+expect "job left in running/" "$(status)" "^pending 0, running 1,"
+log=$(spinel run bin/worker --drain)
+expect "recovered" "$log" "^recovered [0-9]+-[0-9]+-[0-9]+ from a worker that is gone$"
+expect "recovered job ran" "$log" "done sleep .* -> 5000 "
+expect "all done" "$(status)" "^pending 0, running 0, done 27, failed 1$"
+
+step "errors"
+if spinel run bin/enqueue nope 2>tmp/enqueue.err; then fail "an unknown job type should exit non-zero"; fi
+expect "unknown type" "$(cat tmp/enqueue.err)" "enqueue: unknown job type: nope"
+if spinel run bin/worker --threads 0 2>tmp/worker.err; then fail "--threads 0 should exit non-zero"; fi
+expect "bad --threads" "$(cat tmp/worker.err)" "worker: --threads must be between 1 and 32"
+
+printf '\njob-worker: all smoke checks passed\n'

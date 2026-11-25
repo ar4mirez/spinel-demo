@@ -1,0 +1,30 @@
+#!/usr/bin/env spinel
+# frozen_string_literal: true
+
+# Usage: spinel run bin/enqueue TYPE [ARG...]
+#        spinel run bin/enqueue --demo
+# Adds a job to the queue in tmp/queue. Arguments that look like integers are
+# passed as integers. --demo adds one job of every type.
+
+require_relative "../lib/job_worker"
+
+DEMO = [
+  ["square", [7]], ["fib", [90]], ["wordcount", ["the cat and the hat"]],
+  ["sleep", [200]], ["flaky", []], ["boom", []]
+].freeze
+
+jobs =
+  if ARGV == ["--demo"]
+    DEMO
+  elsif ARGV.empty? || ARGV.first.start_with?("-")
+    abort "usage: enqueue TYPE [ARG...] | enqueue --demo\ntypes: #{JobWorker::Jobs.types.join(", ")}"
+  else
+    type, *args = ARGV
+    [[type, args.map { |a| a.match?(/\A-?\d+\z/) ? Integer(a, 10) : a }]]
+  end
+
+queue = JobWorker.queue
+jobs.each do |type, args|
+  abort "enqueue: unknown job type: #{type} (types: #{JobWorker::Jobs.types.join(", ")})" unless JobWorker::Jobs.types.include?(type)
+  puts "enqueued #{queue.enqueue(type, args)} #{type} #{JSON.generate(args)}"
+end
