@@ -71,9 +71,11 @@ module JsonApi
     end
 
     patch "/authors/:id" do
+      find(settings.authors, "author")
+      attrs = validate(AUTHOR, body_object, partial: true)
       atomically do
         find(settings.authors, "author")
-        json(data: settings.authors.update(id, validate(AUTHOR, body_object, partial: true)))
+        json(data: settings.authors.update(id, attrs))
       end
     end
 
@@ -119,9 +121,10 @@ module JsonApi
     end
 
     patch "/books/:id" do
+      find(settings.books, "book")
+      attrs = validate(BOOK, body_object, partial: true)
       atomically do
         find(settings.books, "book")
-        attrs = validate(BOOK, body_object, partial: true)
         require_author(attrs["author_id"]) if attrs.key?("author_id")
         json(data: settings.books.update(id, attrs))
       end
