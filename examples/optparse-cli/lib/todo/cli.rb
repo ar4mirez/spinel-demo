@@ -80,6 +80,7 @@ module Todo
         o.separator COMMANDS.fetch(name).capitalize
         yield o if block_given?
         o.on("-h", "--help", "print this help and exit") { show(o) }
+        o.base.long.delete("version")
       end
     end
 
@@ -121,7 +122,7 @@ module Todo
       ids = ids(argv, "done")
       store = Store.new(@file)
       missing = ids.reject { |id| store.complete(id) }
-      store.save
+      store.save if missing.size < ids.size
       (ids - missing).each { |id| @out.puts "done ##{id}" }
       not_found(missing)
     end

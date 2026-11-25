@@ -65,6 +65,7 @@ class CLITest < Minitest::Test
     assert_equal 1, status
     assert_equal "", out
     assert_match(/no task #7/, err)
+    refute File.exist?(@file)
   end
 
   def test_usage_errors_exit_2
@@ -77,7 +78,12 @@ class CLITest < Minitest::Test
       %w[done abc],
       %w[rm],
       %w[rm 1 2],
-      %w[--nope]
+      %w[--nope],
+      %w[list --version],
+      %w[add --ver x],
+      %w[done --version 1],
+      %w[rm --version 1],
+      %w[help --version]
     ].each do |argv|
       status, _, err = todo(*argv)
       assert_equal 2, status, "todo #{argv.join(" ")}"
