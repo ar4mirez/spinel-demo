@@ -7,9 +7,13 @@ require_relative "../lib/static_site"
 
 class BuilderTest < Minitest::Test
   SITE = File.expand_path("../site", __dir__)
+  TMP = File.expand_path("../tmp", __dir__)
 
+  # Every test works in a fresh directory under this example's tmp/, never
+  # outside the example.
   def setup
-    @dir = Dir.mktmpdir("static-site")
+    FileUtils.mkdir_p(TMP)
+    @dir = Dir.mktmpdir("test-", TMP)
   end
 
   def teardown
@@ -60,5 +64,57 @@ class BuilderTest < Minitest::Test
     assert_raises(StaticSite::Error) { build(src) }
     assert_raises(StaticSite::Error) { StaticSite.build(File.join(@dir, "nope"), out) }
     assert_raises(StaticSite::Error) { StaticSite.build(src, @dir) }
+  end
+
+  # The refusals only ever construct a Builder: nothing is built or deleted.
+  def assert_refused(output, pattern)
+    error = assert_raises(StaticSite::Error) { StaticSite::Builder.new(SITE, output) }
+    assert_match pattern, error.message
+  end
+
+  def test_refuses_the_file_system_root
+    assert_refused "/", /file system root/
+    assert_refused "/../..", /file system root/
+  end
+
+  def test_refuses_the_home_directory_and_its_ancestors
+    assert_refused Dir.home, /home directory/
+    assert_refused File.dirname(Dir.home), /home directory|example directory|outside/
+    assert_refused "~", /home directory/
+  end
+
+  def test_refuses_the_example_directory_and_its_ancestors
+    root = StaticSite::ROOT
+    assert_refused root, /example directory/
+    assert_refused File.dirname(root), /example directory/
+    assert_refused File.join(root, ".."), /example directory/
+    assert_refused File.expand_path("../..", root), /example directory/
+  end
+
+  def test_refuses_anywhere_outside_the_example
+    assert_refused File.join(File.dirname(StaticSite::ROOT), "elsewhere", "public"), /outside/
+    assert_refused File.join(@dir, "..", "..", "..", "out"), /outside/
+  end
+
+  def test_refuses_symlinks_that_lead_outside
+    link = File.join(@dir, "link")
+    File.symlink(File.dirname(StaticSite::ROOT), link)
+    assert_refused link, /example directory/
+    assert_refused File.join(link, "public"), /outside/
+    dangling = File.join(@dir, "dangling")
+    File.symlink(File.join(@dir, "no-such-dir"), dangling)
+    assert_refused dangling, /dangling symlink/
+  end
+
+  def test_refuses_a_directory_holding_the_source
+    assert_refused File.dirname(SITE), /example directory/
+    assert_refused SITE, /source directory/
+  end
+
+  def test_builds_into_a_new_directory_inside_the_example
+    target = File.join(@dir, "new", "site")
+    written = StaticSite.build(SITE, target)
+    assert_includes written, "index.html"
+    assert File.file?(File.join(target, "index.html"))
   end
 end

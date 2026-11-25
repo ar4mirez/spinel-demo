@@ -6,7 +6,7 @@ A small static site generator on Spinel: `bin/build` turns Markdown and ERB temp
 | --- | --- |
 | [lib/static_site.rb](lib/static_site.rb) | The builder: reads `config.yml`, layouts, pages and posts, renders them with ERB, writes the output and copies assets |
 | [lib/static_site/markdown.rb](lib/static_site/markdown.rb) | A small Markdown-to-HTML converter (headings, paragraphs, lists, block quotes, fenced code, `code`, **strong**, *emphasis*, links), escaping HTML |
-| [bin/build](bin/build) | `build [SOURCE [OUTPUT]]`: builds `site/` into `tmp/public/` by default |
+| [bin/build](bin/build) | `build [SOURCE [OUTPUT]]`: builds `site/` into `tmp/public/` by default; OUTPUT must be inside this example |
 | [site/](site/) | The example site |
 | [test/](test/) | Minitest tests for the converter and the builder |
 
@@ -32,7 +32,7 @@ summary: The first post, written in Markdown.
 Spinel runs this generator from one binary.
 ```
 
-Templates see `site`, `page`, `posts` (newest first) and, in layouts, `content`, plus the helpers `h` (HTML escape), `link_to`, `url_for` and `format_date`. Links are relative to the page, so the output works from any directory and when opened straight from disk. Each build empties the output directory first.
+Templates see `site`, `page`, `posts` (newest first) and, in layouts, `content`, plus the helpers `h` (HTML escape), `link_to`, `url_for` and `format_date`. Links are relative to the page, so the output works from any directory and when opened straight from disk. Each build empties the output directory first, so the builder only accepts an output directory strictly inside this example (`examples/static-site/`). It resolves the path first (`File.expand_path`, then `File.realpath`, so symlinks count where they lead) and refuses `/`, your home directory, the example directory or any of its parents, anywhere outside the example, a dangling symlink, and a directory holding the source, before it deletes or writes anything. Use a directory under `tmp/`, which git ignores.
 
 ## Prerequisites
 
@@ -43,9 +43,9 @@ Spinel 0.1.0 on your `PATH` (see the [top-level README](../../README.md#install-
 ```sh
 cd examples/static-site
 spinel install --frozen           # Minitest, for spinel test
-spinel test                       # 10 tests, 0 failures, 0 errors
+spinel test                       # 17 tests, 0 failures, 0 errors
 spinel run bin/build              # site/ -> tmp/public/
-spinel run bin/build site out     # or name the source and output directories
+spinel run bin/build site tmp/preview   # or name the source and an output directory under tmp/
 ```
 
 Then open `tmp/public/index.html` in a browser, or serve the folder with any static file server. `bin/build` starts with `#!/usr/bin/env spinel`, so `bin/build` works too.
@@ -56,8 +56,8 @@ Then open `tmp/public/index.html` in a browser, or serve the folder with any sta
 ./smoke            # or, from the repository root: bin/smoke static-site
 ```
 
-It installs Minitest, runs `spinel test`, builds `site/` into `tmp/public/` over a stale file, checks the files written and their HTML (layout, post order, escaping, dates, Markdown, relative links, copied assets), and checks that a missing source directory fails with a message.
+It installs Minitest, runs `spinel test`, builds `site/` into `tmp/public/` over a stale file, checks the files written and their HTML (layout, post order, escaping, dates, Markdown, relative links, copied assets), and checks that a missing source directory, and an output directory that holds the source, fail with a message.
 
 ## Known issues (spinel 0.1.0)
 
-None: `ERB` (with `trim_mode: "-"`), `ERB::Util`, `YAML.safe_load` with `Date`, `Date`, `File`, `Dir.glob`, `FileUtils` and `Dir.mktmpdir` all ran on Spinel 0.1.0 with no workaround.
+None: `ERB` (with `trim_mode: "-"`), `ERB::Util`, `YAML.safe_load` with `Date`, `Date`, `File`, `Dir.glob`, `FileUtils`, `File.realpath`, `File.symlink` and `Dir.mktmpdir` all ran on Spinel 0.1.0 with no workaround.

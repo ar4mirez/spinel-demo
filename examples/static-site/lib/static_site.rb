@@ -55,14 +55,52 @@ module StaticSite
     def render(template) = template.result(binding)
   end
 
+  # The example directory. A build only ever writes, and empties, a directory
+  # strictly inside it.
+  ROOT = File.expand_path("..", __dir__)
+
+  # Resolves `output` the way the file system will (following symlinks in the
+  # part that exists) and returns it if it is safe to empty and write: strictly
+  # inside ROOT, and not "/", HOME, an ancestor of ROOT, or a directory holding
+  # `source`. Anything else raises Error, before anything is touched.
+  def self.safe_output(output, source)
+    path = resolve(output)
+    root = File.realpath(ROOT)
+    home = ENV["HOME"].to_s.empty? ? nil : resolve(ENV["HOME"])
+    refuse = lambda { |why| raise Error, "refusing to write to #{output}: #{why}" }
+    refuse.("it is the file system root") if path == "/"
+    refuse.("it is the home directory") if path == home
+    refuse.("it contains the home directory") if home&.start_with?("#{path}/")
+    refuse.("it is the example directory or contains it") if path == root || root.start_with?("#{path}/")
+    refuse.("it is outside #{root}") unless path.start_with?("#{root}/")
+    src = resolve(source)
+    refuse.("it contains the source directory") if src == path || src.start_with?("#{path}/")
+    path
+  end
+
+  # File.expand_path, then File.realpath on the longest part that exists. A
+  # missing part that is a (dangling) symlink is refused rather than guessed at.
+  def self.resolve(path)
+    path = File.expand_path(path)
+    missing = []
+    until File.exist?(path)
+      raise Error, "refusing to follow the dangling symlink #{path}" if File.symlink?(path)
+
+      missing.unshift(File.basename(path))
+      path = File.dirname(path)
+    end
+    File.join(File.realpath(path), *missing).then { |p| p.length > 1 ? p.chomp("/") : p }
+  end
+
   class Builder
     attr_reader :source, :output
 
     def initialize(source, output)
       @source = File.expand_path(source)
-      @output = File.expand_path(output)
       raise Error, "no such site directory: #{source}" unless File.directory?(@source)
-      raise Error, "the output directory must not contain the source" if @source.start_with?("#{@output}/") || @source == @output
+
+      @requested = output
+      @output = StaticSite.safe_output(output, @source)
     end
 
     # Writes the whole site into `output` (removing what was there before) and
@@ -72,6 +110,9 @@ module StaticSite
       layouts = load_layouts
       posts = load_posts.sort_by { |p| [p.date, p.path] }.reverse
       pages = load_pages(posts, config)
+
+      # Check again right before deleting, in case a symlink changed since.
+      raise Error, "refusing to write to #{@requested}: it moved" unless StaticSite.safe_output(output, source) == output
 
       FileUtils.rm_rf(output)
       written = (posts + pages).map do |page|

@@ -2,14 +2,16 @@
 # frozen_string_literal: true
 
 # Usage: spinel run bin/build [SOURCE [OUTPUT]]
-# Builds the site in SOURCE (default: site) into OUTPUT (default: tmp/public).
+# Builds the site in SOURCE (default: site) into OUTPUT (default: tmp/public),
+# both relative to this example directory when not given. OUTPUT must be a
+# directory inside the example (it is emptied first); anything else is refused.
 
 require_relative "../lib/static_site"
 
 source, output, *rest = ARGV
 abort "usage: build [SOURCE [OUTPUT]]" unless rest.empty?
-source ||= "site"
-output ||= "tmp/public"
+source ||= File.join(StaticSite::ROOT, "site")
+output ||= File.join(StaticSite::ROOT, "tmp", "public")
 
 begin
   written = StaticSite.build(source, output)
@@ -17,4 +19,4 @@ rescue StaticSite::Error => e
   abort "build: #{e.message}"
 end
 written.each { |path| puts "  #{path}" }
-puts "built #{written.length} files into #{output} with #{RUBY_ENGINE} #{RUBY_ENGINE_VERSION}"
+puts "built #{written.length} files into #{ARGV[1] || "tmp/public"} with #{RUBY_ENGINE} #{RUBY_ENGINE_VERSION}"
